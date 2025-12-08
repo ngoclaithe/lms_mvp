@@ -20,14 +20,12 @@ class CourseBase(BaseModel):
     code: str
     name: str
     credits: int
-    department_id: int
 
 class CourseCreate(CourseBase):
     pass
 
 class Course(CourseBase):
     id: int
-    department: Optional[Department] = None
     class Config:
         from_attributes = True
 
@@ -38,6 +36,11 @@ class ClassBase(BaseModel):
     lecturer_id: int
     semester: str
     max_students: int = 50
+    start_week: Optional[int] = None
+    end_week: Optional[int] = None
+    day_of_week: Optional[int] = None
+    start_period: Optional[int] = None
+    end_period: Optional[int] = None
 
 class ClassCreate(ClassBase):
     pass
@@ -45,6 +48,7 @@ class ClassCreate(ClassBase):
 class Class(ClassBase):
     id: int
     course: Optional[Course] = None # Simplified
+    enrolled_count: int = 0
     class Config:
         from_attributes = True
 
@@ -65,6 +69,9 @@ class Grade(GradeBase):
 class EnrollmentBase(BaseModel):
     class_id: int
     student_id: int
+
+class EnrollmentBulkCreate(BaseModel):
+    student_ids: List[int]
 
 class Enrollment(EnrollmentBase):
     id: int

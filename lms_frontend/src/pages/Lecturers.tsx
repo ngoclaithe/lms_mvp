@@ -15,8 +15,9 @@ const Lecturers: React.FC = () => {
     const [lecturers, setLecturers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const [formData, setFormData] = useState({
-        username: '', email: '', password: '', full_name: '', phone_number: ''
+        username: '', email: '', password: '12345678', full_name: '', phone_number: ''
     });
     const [error, setError] = useState('');
 
@@ -35,17 +36,74 @@ const Lecturers: React.FC = () => {
         }
     };
 
+    // Auto-generate helper
+    const generateCredentials = (fullName: string) => {
+        if (!fullName) return;
+
+        // Remove accents and special chars
+        const cleanName = fullName.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '')
+            .replace(/\s+/g, '');
+
+        setFormData(prev => ({
+            ...prev,
+            username: cleanName,
+            email: `${cleanName}@hust.edu.vn`
+        }));
+    };
+
+    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newName = e.target.value;
+        setFormData(prev => ({ ...prev, full_name: newName }));
+        if (!editingUser) { // Only auto-gen for new users
+            generateCredentials(newName);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await api.post('/deans/lecturers', { ...formData, role: 'lecturer' });
+            if (editingUser) {
+                await api.put(`/deans/lecturers/${editingUser.id}`, { ...formData });
+            } else {
+                await api.post('/deans/lecturers', { ...formData, role: 'lecturer' });
+            }
             setShowModal(false);
-            setFormData({ username: '', email: '', password: '', full_name: '', phone_number: '' });
+            resetForm();
             fetchLecturers();
         } catch (err) {
-            setError('Không thể tạo giảng viên');
+            setError('Không thể lưu thông tin giảng viên');
         }
     };
+
+    const resetForm = () => {
+        setFormData({ username: '', email: '', password: '12345678', full_name: '', phone_number: '' });
+        setEditingUser(null);
+        setError('');
+    };
+
+    const openEditModal = (user: UserData) => {
+        setEditingUser(user);
+        setFormData({
+            username: user.username,
+            email: user.email,
+            password: '', // Don't show password on edit
+            full_name: user.full_name,
+            phone_number: user.phone_number || ''
+        });
+        setShowModal(true);
+    };
+
+    const handleDelete = async (id: number) => {
+        if (!window.confirm("Bạn có chắc chắn muốn xóa?")) return;
+        try {
+            await api.delete(`/deans/lecturers/${id}`);
+            fetchLecturers();
+        } catch (err) {
+            alert("Không thể xóa giảng viên này");
+        }
+    }
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -55,7 +113,7 @@ const Lecturers: React.FC = () => {
                     <p className="text-gray-500 text-sm">Danh sách giảng viên trong khoa</p>
                 </div>
                 <button
-                    onClick={() => setShowModal(true)}
+                    onClick={() => { resetForm(); setShowModal(true); }}
                     className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 transition-all active:scale-95 font-medium"
                 >
                     <Plus className="h-5 w-5" /> Thêm Giảng Viên
@@ -66,7 +124,7 @@ const Lecturers: React.FC = () => {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-gray-900">Thêm Giảng Viên Mới</h3>
+                            <h3 className="text-xl font-bold text-gray-900">{editingUser ? 'Cập Nhật Giảng Viên' : 'Thêm Giảng Viên Mới'}</h3>
                             <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
                         </div>
 
@@ -74,14 +132,40 @@ const Lecturers: React.FC = () => {
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">Tên đăng nhập</label>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Họ và tên</label>
                                 <input
                                     className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                                    value={formData.username}
-                                    onChange={e => setFormData({ ...formData, username: e.target.value })}
+                                    value={formData.full_name}
+                                    onChange={handleNameChange}
+                                    placeholder="Nhập họ và tên..."
                                     required
                                 />
                             </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tên đăng nhập</label>
+                                    <input
+                                        className="w-full border border-gray-200 p-3 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
+                                        value={formData.username}
+                                        readOnly
+                                        disabled={!!editingUser} // Disabled on edit usually, but let's keep it readonly for auto-gen too mostly? User might want to edit.
+                                        onChange={e => setFormData({ ...formData, username: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Mật khẩu</label>
+                                    <input
+                                        type="password"
+                                        className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                                        value={formData.password}
+                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                        placeholder={editingUser ? "Để trống nếu không đổi" : "Mặc định: 12345678"}
+                                        required={!editingUser}
+                                    />
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
                                 <input
@@ -92,24 +176,7 @@ const Lecturers: React.FC = () => {
                                     required
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">Mật khẩu</label>
-                                <input
-                                    type="password"
-                                    className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                                    value={formData.password}
-                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">Họ và tên</label>
-                                <input
-                                    className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                                    value={formData.full_name}
-                                    onChange={e => setFormData({ ...formData, full_name: e.target.value })}
-                                />
-                            </div>
+
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Số điện thoại</label>
                                 <input
@@ -131,7 +198,7 @@ const Lecturers: React.FC = () => {
                                     type="submit"
                                     className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 font-medium shadow-lg shadow-indigo-500/30 transition-all"
                                 >
-                                    Tạo Mới
+                                    {editingUser ? 'Cập Nhật' : 'Tạo Mới'}
                                 </button>
                             </div>
                         </form>
@@ -186,9 +253,20 @@ const Lecturers: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button className="text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg">
-                                            <Trash2 className="h-4.5 w-4.5" />
-                                        </button>
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => openEditModal(lecturer)}
+                                                className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors p-2 rounded-lg"
+                                            >
+                                                <Briefcase className="h-4.5 w-4.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(lecturer.id)}
+                                                className="text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors p-2 rounded-lg"
+                                            >
+                                                <Trash2 className="h-4.5 w-4.5" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

@@ -20,16 +20,19 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    student_code: Optional[str] = None
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     email: Optional[str] = None
     # Add other fields like phone number if added to User model
     phone_number: Optional[str] = None
+    student_code: Optional[str] = None
 
 class User(UserBase):
     id: int
     is_active: bool = True
+    student_code: Optional[str] = None
 
     class Config:
         from_attributes = True

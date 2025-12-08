@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import 'auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -33,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Navigation is handled by GoRouter redirect in main, or explicitly here
       if (success) {
-         // Router should handle redirect based on AuthStatus but let's be explicit if needed
+        // Router should handle redirect based on AuthStatus but let's be explicit if needed
       }
     }
   }
@@ -41,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
@@ -134,11 +133,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Text(
                           'Đăng Nhập',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                 ),
               ],

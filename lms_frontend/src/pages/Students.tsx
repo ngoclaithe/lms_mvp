@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, User, Mail, Phone, Trash2, Search, GraduationCap } from 'lucide-react';
+import { Plus, User, Mail, Phone, Trash2, Edit2 } from 'lucide-react';
 
 interface UserData {
     id: number;
@@ -9,14 +9,16 @@ interface UserData {
     full_name: string;
     phone_number: string;
     is_active: boolean;
+    student_code?: string;
 }
 
 const Students: React.FC = () => {
     const [students, setStudents] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const [formData, setFormData] = useState({
-        username: '', email: '', password: '', full_name: '', phone_number: ''
+        username: '', email: '', password: '12345678', full_name: '', phone_number: '', student_code: ''
     });
     const [error, setError] = useState('');
 
@@ -38,14 +40,87 @@ const Students: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await api.post('/deans/students', { ...formData, role: 'student' });
+            if (editingUser) {
+                await api.put(`/deans/students/${editingUser.id}`, formData);
+            } else {
+                await api.post('/deans/students', { ...formData, role: 'student' });
+            }
             setShowModal(false);
-            setFormData({ username: '', email: '', password: '', full_name: '', phone_number: '' });
+            resetForm();
             fetchStudents();
         } catch (err) {
-            setError('Không thể tạo sinh viên');
+            setError('Không thể lưu thông tin sinh viên');
         }
     };
+
+    const removeVietnameseTones = (str: string) => {
+        str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+        str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+        str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+        str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+        str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+        str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+        str = str.replace(/đ/g, "d");
+        str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
+        str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
+        str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
+        str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
+        str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
+        str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
+        str = str.replace(/Đ/g, "D");
+        // Some system encode vietnamese combining accent as individual utf-8 characters
+        // \u0300, \u0301, \u0303, \u0309, \u0323
+        str = str.replace(/\u0300|\u0301|\u0303|\u0309|\u0323/g, ""); // ̀ ́ ̃ ̉ ̣ 
+        str = str.replace(/\u02C6|\u0306|\u031B/g, ""); // ˆ ̆ ̛  Â, Ê, Ă, Ơ, Ư
+        // Remove extra spaces
+        str = str.replace(/ + /g, " ");
+        str = str.trim();
+        // Remove punctuations
+        // str = str.replace(/!|@|%|\^|\*|\(|\)|\+|\=|\<|\>|\?|\/|,|\.|\:|\;|\'|\"|\&|\#|\[|\]|~|\$|_|`|-|{|}|\||\\/g," ");
+        return str;
+    }
+
+    useEffect(() => {
+        if (!editingUser && formData.full_name) {
+            const namePart = removeVietnameseTones(formData.full_name).toLowerCase().replace(/\s/g, '');
+            const codePart = formData.student_code ? formData.student_code.slice(-4) : '';
+            const newUsername = `${namePart}${codePart}`;
+            setFormData(prev => ({
+                ...prev,
+                username: newUsername,
+                email: `${newUsername}@student.university.edu.vn`
+            }));
+        }
+    }, [formData.full_name, formData.student_code, editingUser]);
+
+    const resetForm = () => {
+        setFormData({ username: '', email: '', password: '12345678', full_name: '', phone_number: '', student_code: '' });
+        setEditingUser(null);
+        setError('');
+    };
+
+    const openEditModal = (user: UserData) => {
+        setEditingUser(user);
+        setFormData({
+            username: user.username,
+            email: user.email,
+            password: '', // Don't show password on edit
+            full_name: user.full_name,
+            phone_number: user.phone_number || '',
+            student_code: user.student_code || ''
+        });
+        setShowModal(true);
+    };
+
+    const handleDelete = async (id: number) => {
+        if (!window.confirm("Bạn có chắc chắn muốn xóa?")) return;
+        try {
+            await api.delete(`/deans/students/${id}`);
+            fetchStudents();
+        } catch (err) {
+            alert("Không thể xóa sinh viên này");
+        }
+    }
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -55,7 +130,7 @@ const Students: React.FC = () => {
                     <p className="text-gray-500 text-sm">Danh sách sinh viên toàn trường</p>
                 </div>
                 <button
-                    onClick={() => setShowModal(true)}
+                    onClick={() => { resetForm(); setShowModal(true); }}
                     className="bg-green-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-green-700 shadow-lg shadow-green-500/20 transition-all active:scale-95 font-medium"
                 >
                     <Plus className="h-5 w-5" /> Thêm Sinh Viên
@@ -66,7 +141,7 @@ const Students: React.FC = () => {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-gray-900">Thêm Sinh Viên Mới</h3>
+                            <h3 className="text-xl font-bold text-gray-900">{editingUser ? 'Cập Nhật Sinh Viên' : 'Thêm Sinh Viên Mới'}</h3>
                             <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
                         </div>
 
@@ -74,14 +149,37 @@ const Students: React.FC = () => {
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">Tên đăng nhập (MSSV)</label>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Họ và tên</label>
                                 <input
                                     className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all"
-                                    value={formData.username}
-                                    onChange={e => setFormData({ ...formData, username: e.target.value })}
+                                    value={formData.full_name}
+                                    onChange={e => setFormData({ ...formData, full_name: e.target.value })}
                                     required
                                 />
                             </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Mã sinh viên (MSSV)</label>
+                                    <input
+                                        className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all"
+                                        value={formData.student_code}
+                                        onChange={e => setFormData({ ...formData, student_code: e.target.value })}
+                                        placeholder="VD: 20240001"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tên đăng nhập</label>
+                                    <input
+                                        className={`w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all ${editingUser ? 'bg-gray-50 text-gray-500' : ''}`}
+                                        value={formData.username}
+                                        readOnly={!!editingUser}
+                                        onChange={e => setFormData({ ...formData, username: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
                                 <input
@@ -99,15 +197,8 @@ const Students: React.FC = () => {
                                     className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all"
                                     value={formData.password}
                                     onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">Họ và tên</label>
-                                <input
-                                    className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all"
-                                    value={formData.full_name}
-                                    onChange={e => setFormData({ ...formData, full_name: e.target.value })}
+                                    placeholder={editingUser ? "Để trống nếu không đổi" : "Mặc định: 12345678"}
+                                    required={!editingUser}
                                 />
                             </div>
                             <div>
@@ -131,7 +222,7 @@ const Students: React.FC = () => {
                                     type="submit"
                                     className="bg-green-600 text-white px-5 py-2.5 rounded-xl hover:bg-green-700 font-medium shadow-lg shadow-green-500/30 transition-all"
                                 >
-                                    Tạo Mới
+                                    {editingUser ? 'Cập Nhật' : 'Tạo Mới'}
                                 </button>
                             </div>
                         </form>
@@ -148,6 +239,7 @@ const Students: React.FC = () => {
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50/50 text-gray-800 font-semibold uppercase text-xs">
                             <tr>
+                                <th className="px-6 py-4">MSSV</th>
                                 <th className="px-6 py-4">Sinh Viên</th>
                                 <th className="px-6 py-4">Liên Hệ</th>
                                 <th className="px-6 py-4">Trạng Thái</th>
@@ -157,6 +249,9 @@ const Students: React.FC = () => {
                         <tbody className="divide-y divide-gray-100">
                             {students.map(student => (
                                 <tr key={student.id} className="hover:bg-green-50/30 transition-colors group">
+                                    <td className="px-6 py-4 font-medium text-gray-900">
+                                        {student.student_code || '---'}
+                                    </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-4">
                                             <div className="bg-green-100 p-3 rounded-xl shadow-sm">
@@ -186,22 +281,33 @@ const Students: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button className="text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg">
-                                            <Trash2 className="h-4.5 w-4.5" />
-                                        </button>
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => openEditModal(student)}
+                                                className="text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors p-2 rounded-lg"
+                                            >
+                                                <Edit2 className="h-4.5 w-4.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(student.id)}
+                                                className="text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors p-2 rounded-lg"
+                                            >
+                                                <Trash2 className="h-4.5 w-4.5" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
                             {students.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-10 text-center text-gray-400 italic">Chưa có sinh viên nào</td>
+                                    <td colSpan={5} className="px-6 py-10 text-center text-gray-400 italic">Chưa có sinh viên nào</td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
-                </div>
+                </div >
             )}
-        </div>
+        </div >
     );
 };
 

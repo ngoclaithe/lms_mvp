@@ -5,8 +5,12 @@ import Login from './pages/Login';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Courses from './pages/Courses';
+import DeanDepartments from './components/DeanDepartments';
+import DeanClasses from './components/DeanClasses';
+import DeanGrades from './components/DeanGrades';
 import Lecturers from './pages/Lecturers';
 import Students from './pages/Students';
+import ClassDetails from './pages/ClassDetails';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -25,6 +29,10 @@ const App: React.FC = () => {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="courses" element={<Courses />} />
+            <Route path="departments" element={<DeanDepartments />} />
+            <Route path="classes" element={<DeanClasses />} />
+            <Route path="classes/:id" element={<ClassDetails />} />
+            <Route path="grades" element={<DeanGrades />} />
             <Route path="lecturers" element={<Lecturers />} />
             <Route path="students" element={<Students />} />
           </Route>

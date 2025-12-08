@@ -18,10 +18,14 @@ const Login: React.FC = () => {
             const response = await api.post('/auth/login', new URLSearchParams({
                 username: username,
                 password: password,
-            }));
+            }), {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
 
-            const { access_token } = response.data;
-            login(access_token, { username });
+            const { access_token, role } = response.data;
+            login(access_token, { username, role });
             navigate('/dashboard');
         } catch (err: any) {
             setError('Tên đăng nhập hoặc mật khẩu không đúng');

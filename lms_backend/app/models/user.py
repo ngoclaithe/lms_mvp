@@ -19,6 +19,10 @@ class User(Base):
     student = relationship("Student", uselist=False, back_populates="user")
     lecturer = relationship("Lecturer", uselist=False, back_populates="user")
 
+    @property
+    def student_code(self):
+        return self.student.student_code if self.student else None
+
 class Student(Base):
     __tablename__ = "students"
 

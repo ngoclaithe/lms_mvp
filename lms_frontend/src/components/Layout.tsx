@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, BookOpen, Users, GraduationCap, LogOut, User, Menu } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Users, GraduationCap, LogOut, User, Menu, Building2 } from 'lucide-react';
 import clsx from 'clsx';
 
 const Layout: React.FC = () => {
@@ -16,10 +16,18 @@ const Layout: React.FC = () => {
 
     const navItems = [
         { name: 'Tổng quan', path: '/dashboard', icon: LayoutDashboard },
-        { name: 'Khóa học', path: '/courses', icon: BookOpen },
+        { name: 'Quản lý học phần', path: '/courses', icon: BookOpen }, // Renamed from "Khóa học"
         { name: 'Giảng viên', path: '/lecturers', icon: Users },
         { name: 'Sinh viên', path: '/students', icon: GraduationCap },
     ];
+
+    if (user?.role === 'dean') {
+        navItems.push(
+            { name: 'Quản lý khoa/viện', path: '/departments', icon: Building2 }, // New item
+            { name: 'Quản lý lớp học', path: '/classes', icon: Users },
+            { name: 'Quản lý điểm', path: '/grades', icon: GraduationCap }
+        );
+    }
 
     return (
         <div className="flex h-screen bg-gray-50 font-sans">

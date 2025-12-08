@@ -13,6 +13,15 @@ from app.models.enums import UserRole
 
 router = APIRouter(prefix="/lecturers", tags=["lecturers"])
 
+@router.get("/me", response_model=UserSchema)
+def read_lecturer_profile(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != UserRole.LECTURER:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return current_user
+
 @router.put("/me", response_model=UserSchema)
 def update_lecturer_profile(
     user_update: UserUpdate,

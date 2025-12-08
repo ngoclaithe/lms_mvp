@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/api_client.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
+
 enum UserRole { student, lecturer, dean, unknown }
 
 class AuthProvider with ChangeNotifier {
@@ -34,24 +35,26 @@ class AuthProvider with ChangeNotifier {
       // For now, we'll fetch user info or decode if custom claim exists.
       // Let's assume we decode 'role' from token if available, or just trust the previous session.
       // Ideally, we make a call to /users/me or similar if exists.
-      
-      // Let's rely on stored role or decoding. 
+
+      // Let's rely on stored role or decoding.
       // If backend doesn't send role in token, we might need a separate call.
       // For this implementation, let's assume we can determine role upon login.
-      
+
       final roleStr = prefs.getString('user_role');
       if (roleStr != null) {
-          if (roleStr == 'student') _role = UserRole.student;
-          else if (roleStr == 'lecturer') _role = UserRole.lecturer;
-          else if (roleStr == 'dean') {
-             // Should not happen if we blocked login, but handle just in case
-              _status = AuthStatus.unauthenticated;
-               await logout();
-               notifyListeners();
-               return;
-          }
+        if (roleStr == 'student') {
+          _role = UserRole.student;
+        } else if (roleStr == 'lecturer')
+          _role = UserRole.lecturer;
+        else if (roleStr == 'dean') {
+          // Should not happen if we blocked login, but handle just in case
+          _status = AuthStatus.unauthenticated;
+          await logout();
+          notifyListeners();
+          return;
+        }
       }
-      
+
       _status = AuthStatus.authenticated;
     } else {
       _status = AuthStatus.unauthenticated;
@@ -75,8 +78,9 @@ class AuthProvider with ChangeNotifier {
 
       if (roleStr == null) {
         // Fallback or error if role is missing (should not happen with updated backend)
-         await logout();
-        _errorMessage = 'Không xác định được quyền hạn người dùng (Missing role).';
+        await logout();
+        _errorMessage =
+            'Không xác định được quyền hạn người dùng (Missing role).';
         notifyListeners();
         return false;
       }
@@ -84,7 +88,10 @@ class AuthProvider with ChangeNotifier {
       // Store token
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('access_token', token);
-      await prefs.setString('user_role', roleStr); // Persist role for auto-login checks
+      await prefs.setString(
+        'user_role',
+        roleStr,
+      ); // Persist role for auto-login checks
 
       if (roleStr.toLowerCase() == 'dean') {
         await logout();
@@ -110,19 +117,16 @@ class AuthProvider with ChangeNotifier {
       _username = username;
       notifyListeners();
       return true;
-
     } catch (e) {
       await logout();
       if (e is DioException && e.response?.statusCode == 401) {
-         _errorMessage = 'Sai tên đăng nhập hoặc mật khẩu';
+        _errorMessage = 'Sai tên đăng nhập hoặc mật khẩu';
       } else {
-         _errorMessage = 'Lỗi xác thực: $e';
+        _errorMessage = 'Lỗi xác thực: $e';
       }
       notifyListeners();
       return false;
     }
-
-
   }
 
   Future<void> logout() async {
