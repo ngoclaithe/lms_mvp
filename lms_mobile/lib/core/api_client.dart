@@ -2,9 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
-  // Use 10.0.2.2 for Android Emulator to access localhost
   static const String baseUrl = 'http://10.0.2.2:8000';
-  
+
   final Dio _dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
@@ -29,7 +28,6 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) {
-          // Handle specific errors like 401 Unauthorized here if needed
           return handler.next(e);
         },
       ),

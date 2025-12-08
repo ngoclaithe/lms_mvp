@@ -30,15 +30,7 @@ class AuthProvider with ChangeNotifier {
 
     if (token != null && !JwtDecoder.isExpired(token)) {
       final decodedToken = JwtDecoder.decode(token);
-      _username = decodedToken['sub']; // Assuming 'sub' is username
-      // Note: Role might not be in token standard claims, depends on backend.
-      // For now, we'll fetch user info or decode if custom claim exists.
-      // Let's assume we decode 'role' from token if available, or just trust the previous session.
-      // Ideally, we make a call to /users/me or similar if exists.
-
-      // Let's rely on stored role or decoding.
-      // If backend doesn't send role in token, we might need a separate call.
-      // For this implementation, let's assume we can determine role upon login.
+      _username = decodedToken['sub'];
 
       final roleStr = prefs.getString('user_role');
       if (roleStr != null) {
@@ -47,7 +39,6 @@ class AuthProvider with ChangeNotifier {
         } else if (roleStr == 'lecturer')
           _role = UserRole.lecturer;
         else if (roleStr == 'dean') {
-          // Should not happen if we blocked login, but handle just in case
           _status = AuthStatus.unauthenticated;
           await logout();
           notifyListeners();
@@ -77,7 +68,6 @@ class AuthProvider with ChangeNotifier {
       final roleStr = response.data['role'] as String?;
 
       if (roleStr == null) {
-        // Fallback or error if role is missing (should not happen with updated backend)
         await logout();
         _errorMessage =
             'Không xác định được quyền hạn người dùng (Missing role).';
@@ -88,10 +78,7 @@ class AuthProvider with ChangeNotifier {
       // Store token
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('access_token', token);
-      await prefs.setString(
-        'user_role',
-        roleStr,
-      ); // Persist role for auto-login checks
+      await prefs.setString('user_role', roleStr);
 
       if (roleStr.toLowerCase() == 'dean') {
         await logout();

@@ -31,7 +31,7 @@ class _LecturerClassDetailScreenState extends State<LecturerClassDetailScreen> {
   Future<void> _fetchStudents() async {
     try {
       final response = await _apiClient.client.get(
-        '/lecturers/my-classes/${widget.classId}/students',
+        '/lecturers/classes/${widget.classId}/students',
       );
       setState(() {
         _students = response.data;
@@ -45,53 +45,96 @@ class _LecturerClassDetailScreenState extends State<LecturerClassDetailScreen> {
     }
   }
 
-  Future<void> _updateGrade(int enrollmentId, double newGrade) async {
+  Future<void> _updateGrade(
+    int enrollmentId,
+    String gradeType,
+    double score,
+  ) async {
     try {
-      await _apiClient.client.put(
+      await _apiClient.client.post(
         '/lecturers/grades',
-        data: {'enrollment_id': enrollmentId, 'grade': newGrade},
+        data: {
+          'enrollment_id': enrollmentId,
+          'grade_type': gradeType,
+          'score': score,
+          'weight': gradeType == 'midterm' ? 0.3 : 0.7,
+        },
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Grade updated successfully')),
-      );
-      _fetchStudents(); // Refresh list
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cập nhật điểm thành công')));
+      _fetchStudents();
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Failed to update grade')));
+      ).showSnackBar(const SnackBar(content: Text('Lỗi cập nhật điểm')));
     }
   }
 
   void _showGradeDialog(dynamic student) {
-    final gradeController = TextEditingController(
-      text: student['grade']?.toString() ?? '',
+    final midtermController = TextEditingController(
+      text: student['midterm_grade']?.toString() ?? '',
+    );
+    final finalController = TextEditingController(
+      text: student['final_grade']?.toString() ?? '',
     );
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Grade for ${student['student_name']}'),
-        content: TextField(
-          controller: gradeController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Enter Grade (0-10)'),
+        title: Text('Nhập điểm: ${student['student_name']}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: midtermController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Điểm Giữa kỳ (0-10)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: finalController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Điểm Cuối kỳ (0-10)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Hủy'),
           ),
           ElevatedButton(
             onPressed: () {
-              final grade = double.tryParse(gradeController.text);
-              if (grade != null && grade >= 0 && grade <= 10) {
-                _updateGrade(student['enrollment_id'], grade);
+              bool hasUpdate = false;
+
+              final midterm = double.tryParse(midtermController.text);
+              if (midterm != null && midterm >= 0 && midterm <= 10) {
+                _updateGrade(student['enrollment_id'], 'midterm', midterm);
+                hasUpdate = true;
+              }
+
+              final final_ = double.tryParse(finalController.text);
+              if (final_ != null && final_ >= 0 && final_ <= 10) {
+                _updateGrade(student['enrollment_id'], 'final', final_);
+                hasUpdate = true;
+              }
+
+              if (hasUpdate) {
                 Navigator.pop(context);
-              } else {
-                // Show validation error
               }
             },
-            child: const Text('Save'),
+            child: const Text('Lưu'),
           ),
         ],
       ),
@@ -110,31 +153,52 @@ class _LecturerClassDetailScreenState extends State<LecturerClassDetailScreen> {
               itemCount: _students.length,
               itemBuilder: (context, index) {
                 final student = _students[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    child: Text(student['student_nam']?[0] ?? 'S'),
+                final midterm = student['midterm_grade'];
+                final final_ = student['final_grade'];
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 8,
                   ),
-                  title: Text(student['student_name'] ?? 'Unknown'),
-                  subtitle: Text(
-                    'MSSV: ${student['student_id']}',
-                  ), // Assuming student_id is MSSV for display
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      child: Text(student['student_name']?[0] ?? 'S'),
                     ),
-                    decoration: BoxDecoration(
-                      color: student['grade'] != null
-                          ? Colors.green[100]
-                          : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12),
+                    title: Text(student['student_name'] ?? 'Unknown'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('MSSV: ${student['student_id']}'),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              'GK: ${midterm?.toString() ?? '-'}',
+                              style: TextStyle(
+                                color: midterm != null
+                                    ? Colors.blue
+                                    : Colors.grey,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Text(
+                              'CK: ${final_?.toString() ?? '-'}',
+                              style: TextStyle(
+                                color: final_ != null
+                                    ? Colors.green
+                                    : Colors.grey,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      student['grade']?.toString() ?? 'N/A',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    trailing: const Icon(Icons.edit),
+                    onTap: () => _showGradeDialog(student),
                   ),
-                  onTap: () => _showGradeDialog(student),
                 );
               },
             ),

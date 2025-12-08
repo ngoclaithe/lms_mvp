@@ -17,7 +17,7 @@ class Course(Base):
     __tablename__ = "courses"
 
     id = Column(Integer, primary_key=True, index=True)
-    code = Column(String, unique=True, index=True, nullable=False) # e.g. CS101
+    code = Column(String, unique=True, index=True, nullable=False) 
     name = Column(String, nullable=False)
     credits = Column(Integer, nullable=False)
     classes = relationship("Class", back_populates="course")
@@ -26,10 +26,10 @@ class Class(Base):
     __tablename__ = "classes"
 
     id = Column(Integer, primary_key=True, index=True)
-    code = Column(String, unique=True, index=True, nullable=False) # e.g. CS101-2023-1
+    code = Column(String, unique=True, index=True, nullable=False) 
     course_id = Column(Integer, ForeignKey("courses.id"))
     lecturer_id = Column(Integer, ForeignKey("lecturers.user_id"))
-    semester = Column(String) # e.g. "2023.1"
+    semester = Column(String)
     max_students = Column(Integer, default=50)
     # Schedule info
     start_week = Column(Integer)
@@ -48,7 +48,7 @@ class Schedule(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     class_id = Column(Integer, ForeignKey("classes.id"))
-    day_of_week = Column(String) # Monday, Tuesday...
+    day_of_week = Column(String)
     start_time = Column(Time)
     end_time = Column(Time)
     room = Column(String)
@@ -71,7 +71,7 @@ class Grade(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     enrollment_id = Column(Integer, ForeignKey("enrollments.id"))
-    grade_type = Column(String) # 'midterm', 'final'
+    grade_type = Column(String) 
     score = Column(Float)
     weight = Column(Float, default=1.0)
 

@@ -10,7 +10,7 @@ from app.models.academic import Department, Course, Class, Enrollment, Grade
 from app.schemas.academic import (
     CourseCreate, Course as CourseSchema,
     ClassCreate, Class as ClassSchema,
-    Grade as GradeSchema,
+    GradeCreate, Grade as GradeSchema,
     DepartmentCreate, Department as DepartmentSchema
 )
 from app.schemas.user import UserCreate, User as UserSchema, UserUpdate
@@ -160,8 +160,11 @@ def create_lecturer(
         
     user = create_user(db, user_in)
     # Create Lecturer profile
-    lecturer_profile = Lecturer(user_id=user.id, lecturer_code=f"LEC{user.id}") # Auto-gen code
-    # Note: department_id is nullable, so we don't set it here yet. Can be updated later.
+    lecturer_profile = Lecturer(
+        user_id=user.id, 
+        lecturer_code=f"LEC{user.id}",
+        department_id=user_in.department_id
+    )
     db.add(lecturer_profile)
     db.commit()
     
@@ -173,12 +176,29 @@ def list_lecturers(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    return db.query(User).filter(User.role == UserRole.LECTURER).all()
+    lecturers = db.query(User).filter(User.role == UserRole.LECTURER).all()
+    
+    # Add department_name to each lecturer
+    result = []
+    for lec in lecturers:
+        lec_dict = {
+            "id": lec.id,
+            "username": lec.username,
+            "email": lec.email,
+            "full_name": lec.full_name,
+            "phone_number": lec.phone_number,
+            "role": lec.role,
+            "student_code": None,
+            "department_name": lec.lecturer.department.name if lec.lecturer and lec.lecturer.department else None,
+            "is_active": True
+        }
+        result.append(lec_dict)
+    return result
 
 @router.put("/lecturers/{user_id}", response_model=UserSchema)
 def update_lecturer(
     user_id: int,
-    user_in: UserCreate,
+    user_in: UserUpdate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -186,15 +206,33 @@ def update_lecturer(
     db_user = db.query(User).filter(User.id == user_id, User.role == UserRole.LECTURER).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="Lecturer not found")
-        
-    db_user.full_name = user_in.full_name
-    db_user.email = user_in.email
-    db_user.phone_number = user_in.phone_number
-    # Basic update, password updates usually separate but skipping for MVP simple edit
+    
+    if user_in.full_name:
+        db_user.full_name = user_in.full_name
+    if user_in.email:
+        db_user.email = user_in.email
+    if user_in.phone_number:
+        db_user.phone_number = user_in.phone_number
+    
+    # Update department if provided
+    if user_in.department_id is not None and db_user.lecturer:
+        db_user.lecturer.department_id = user_in.department_id
     
     db.commit()
     db.refresh(db_user)
-    return db_user
+    
+    # Return with department_name
+    return {
+        "id": db_user.id,
+        "username": db_user.username,
+        "email": db_user.email,
+        "full_name": db_user.full_name,
+        "phone_number": db_user.phone_number,
+        "role": db_user.role,
+        "student_code": None,
+        "department_name": db_user.lecturer.department.name if db_user.lecturer and db_user.lecturer.department else None,
+        "is_active": True
+    }
 
 @router.delete("/lecturers/{user_id}")
 def delete_lecturer(
@@ -240,7 +278,11 @@ def create_student(
          # For MVP, let's assume unique or handle generic integrity error
          pass
 
-    student_profile = Student(user_id=user.id, student_code=code) 
+    student_profile = Student(
+        user_id=user.id, 
+        student_code=code,
+        department_id=user_in.department_id
+    )
     db.add(student_profile)
     db.commit()
     
@@ -252,7 +294,24 @@ def list_students(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    return db.query(User).filter(User.role == UserRole.STUDENT).all()
+    students = db.query(User).filter(User.role == UserRole.STUDENT).all()
+    
+    # Add department_name and student_code to each student
+    result = []
+    for stu in students:
+        stu_dict = {
+            "id": stu.id,
+            "username": stu.username,
+            "email": stu.email,
+            "full_name": stu.full_name,
+            "phone_number": stu.phone_number,
+            "role": stu.role,
+            "student_code": stu.student.student_code if stu.student else None,
+            "department_name": stu.student.department.name if stu.student and stu.student.department else None,
+            "is_active": True
+        }
+        result.append(stu_dict)
+    return result
 
 @router.put("/students/{user_id}", response_model=UserSchema)
 def update_student(
@@ -265,20 +324,37 @@ def update_student(
     db_user = db.query(User).filter(User.id == user_id, User.role == UserRole.STUDENT).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="Student not found")
-        
-    db_user.full_name = user_in.full_name
-    db_user.email = user_in.email
-    db_user.phone_number = user_in.phone_number
     
-    # Update student code if provided and changed
-    if user_in.student_code:
-        db_student = db.query(Student).filter(Student.user_id == user_id).first()
-        if db_student:
-             db_student.student_code = user_in.student_code
+    if user_in.full_name:
+        db_user.full_name = user_in.full_name
+    if user_in.email:
+        db_user.email = user_in.email
+    if user_in.phone_number:
+        db_user.phone_number = user_in.phone_number
+    
+    # Update student code if provided
+    if user_in.student_code and db_user.student:
+        db_user.student.student_code = user_in.student_code
+    
+    # Update department if provided
+    if user_in.department_id is not None and db_user.student:
+        db_user.student.department_id = user_in.department_id
     
     db.commit()
     db.refresh(db_user)
-    return db_user
+    
+    # Return with department_name
+    return {
+        "id": db_user.id,
+        "username": db_user.username,
+        "email": db_user.email,
+        "full_name": db_user.full_name,
+        "phone_number": db_user.phone_number,
+        "role": db_user.role,
+        "student_code": db_user.student.student_code if db_user.student else None,
+        "department_name": db_user.student.department.name if db_user.student and db_user.student.department else None,
+        "is_active": True
+    }
 
 @router.delete("/students/{user_id}")
 def delete_student(
@@ -304,13 +380,10 @@ def create_class(
 ):
     check_dean_role(current_user)
     
-    # Fix: Ensure Lecturer profile exists for the selected user
     lecturer = db.query(Lecturer).filter(Lecturer.user_id == class_in.lecturer_id).first()
     if not lecturer:
-        # Check if User exists and is a Lecturer
         user = db.query(User).filter(User.id == class_in.lecturer_id, User.role == UserRole.LECTURER).first()
         if user:
-            # Auto-create missing profile
             lecturer = Lecturer(user_id=user.id, lecturer_code=f"LEC{user.id}")
             db.add(lecturer)
             db.commit()
@@ -450,6 +523,36 @@ def update_grade(
     db.refresh(db_grade)
     return db_grade
 
+@router.post("/grades", response_model=GradeSchema)
+def create_grade(
+    grade_in: GradeCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    
+    # Check enrollment existence
+    enrollment = db.query(Enrollment).filter(Enrollment.id == grade_in.enrollment_id).first()
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+        
+    # Check if grade type already exists for this enrollment (optional, but good practice)
+    # For now allow multiple, or maybe unique per type? usually unique per type (midterm/final)
+    # Let's check if collision
+    existing = db.query(Grade).filter(
+        Grade.enrollment_id == grade_in.enrollment_id, 
+        Grade.grade_type == grade_in.grade_type
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Grade type {grade_in.grade_type} already exists for this student. Use PUT to update.")
+
+    db_grade = Grade(**grade_in.dict())
+    db.add(db_grade)
+    db.commit()
+    db.refresh(db_grade)
+    return db_grade
+
 # --- Grade Management ---
 @router.get("/classes/{class_id}/grades", response_model=List[dict])
 def view_class_grades(
@@ -469,10 +572,19 @@ def view_class_grades(
     results = []
     for enrollment in enrollments:
         student_info = {
+            "enrollment_id": enrollment.id,
             "student_id": enrollment.student.user.id,
             "student_code": enrollment.student.student_code,
             "full_name": enrollment.student.user.full_name,
-            "grades": enrollment.grades
+            "full_name": enrollment.student.user.full_name,
+            "grades": [
+                {
+                    "id": g.id, 
+                    "grade_type": g.grade_type, 
+                    "score": g.score, 
+                    "weight": g.weight
+                } for g in enrollment.grades
+            ]
         }
         results.append(student_info)
         
@@ -489,16 +601,4 @@ def get_class(
     if not db_class:
         raise HTTPException(status_code=404, detail="Class not found")
     return db_class
-    db: Session = Depends(get_db)
-):
-    check_dean_role(current_user)
-    db_grade = db.query(Grade).filter(Grade.id == grade_id).first()
-    if not db_grade:
-        raise HTTPException(status_code=404, detail="Grade not found")
-        
-    db_grade.score = grade_in.score
-    # db_grade.weight = grade_in.weight # If weight update is allowed
-    
-    db.commit()
-    db.refresh(db_grade)
-    return db_grade
+

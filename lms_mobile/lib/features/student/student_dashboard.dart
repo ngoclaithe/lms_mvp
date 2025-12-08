@@ -75,6 +75,30 @@ class _StudentDashboardState extends State<StudentDashboard> with SingleTickerPr
                                 title: Text(cls['course_name'] ?? 'Class ${cls['id']}'),
                                 subtitle: Text(
                                     'Phòng: ${cls['room'] ?? 'N/A'} - Giảng viên: ${cls['lecturer_name'] ?? 'N/A'}'),
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: Text(cls['course_name'] ?? 'Chi tiết lớp học'),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Giảng viên: ${cls['lecturer_name'] ?? 'N/A'}'),
+                                          const SizedBox(height: 8),
+                                          Text('Phòng học: ${cls['room'] ?? 'Online'}'),
+                                          const SizedBox(height: 8),
+                                          Text('Thứ: ${cls['day_of_week'] != null ? 'Thứ ${cls['day_of_week'] + 1}' : 'Chưa xếp'}'),
+                                          Text('Tuần học: ${cls['start_week'] ?? '?'} - ${cls['end_week'] ?? '?'}'),
+                                          Text('Tiết học: ${cls['start_period'] ?? '?'} - ${cls['end_period'] ?? '?'}'),
+                                        ],
+                                      ),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))
+                                      ],
+                                    ),
+                                  );
+                                },
                               ),
                             );
                           },
@@ -102,6 +126,30 @@ class _StudentDashboardState extends State<StudentDashboard> with SingleTickerPr
                                 ),
                                 title: Text(grade['course_name'] ?? 'Unknown Course'),
                                 subtitle: Text('Tín chỉ: ${grade['credits'] ?? 3}'),
+                                onTap: () {
+                                  final details = grade['details'] as List<dynamic>? ?? [];
+                                  showDialog(
+                                    context: context, 
+                                    builder: (context) => AlertDialog(
+                                      title: Text('Điểm chi tiết: ${grade['course_name']}'),
+                                      content: details.isEmpty 
+                                        ? const Text('Chưa có điểm thành phần')
+                                        : Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: details.map((d) {
+                                              String label = d['grade_type'] == 'midterm' ? 'Giữa kỳ' : (d['grade_type'] == 'final' ? 'Cuối kỳ' : d['grade_type']);
+                                              return ListTile(
+                                                title: Text(label),
+                                                trailing: Text(d['score'].toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                                              );
+                                            }).toList(),
+                                          ),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))
+                                      ],
+                                    )
+                                  );
+                                },
                               ),
                             );
                           },

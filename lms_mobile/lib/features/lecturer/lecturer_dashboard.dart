@@ -71,7 +71,11 @@ class _LecturerDashboardState extends State<LecturerDashboard> with SingleTicker
                               child: Icon(Icons.class_, color: Colors.white),
                             ),
                             title: Text(cls['course_name'] ?? 'Class ID: ${cls['id']}'),
-                            subtitle: Text('Semester: ${cls['semester']} - Year: ${cls['year']}'),
+                            subtitle: Text(
+                              cls['day_of_week'] != null 
+                                ? 'Thứ ${cls['day_of_week'] + 1} - Tiết ${cls['start_period']}-${cls['end_period']}'
+                                : 'Chưa xếp lịch'
+                            ),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () {
                               Navigator.push(

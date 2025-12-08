@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, User, Mail, Phone, Trash2, Search, Briefcase } from 'lucide-react';
+import { Plus, User, Mail, Phone, Trash2, Briefcase } from 'lucide-react';
 
 interface UserData {
     id: number;
@@ -9,21 +9,38 @@ interface UserData {
     full_name: string;
     phone_number: string;
     is_active: boolean;
+    department_name?: string;
+}
+
+interface Department {
+    id: number;
+    name: string;
 }
 
 const Lecturers: React.FC = () => {
     const [lecturers, setLecturers] = useState<UserData[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const [formData, setFormData] = useState({
-        username: '', email: '', password: '12345678', full_name: '', phone_number: ''
+        username: '', email: '', password: '12345678', full_name: '', phone_number: '', department_id: ''
     });
     const [error, setError] = useState('');
 
     useEffect(() => {
         fetchLecturers();
+        fetchDepartments();
     }, []);
+
+    const fetchDepartments = async () => {
+        try {
+            const response = await api.get('/deans/departments');
+            setDepartments(response.data);
+        } catch (err) {
+            console.error('Failed to fetch departments:', err);
+        }
+    };
 
     const fetchLecturers = async () => {
         try {
@@ -36,11 +53,9 @@ const Lecturers: React.FC = () => {
         }
     };
 
-    // Auto-generate helper
     const generateCredentials = (fullName: string) => {
         if (!fullName) return;
 
-        // Remove accents and special chars
         const cleanName = fullName.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .toLowerCase()
             .replace(/[^a-z0-9\s]/g, '')
@@ -56,7 +71,7 @@ const Lecturers: React.FC = () => {
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newName = e.target.value;
         setFormData(prev => ({ ...prev, full_name: newName }));
-        if (!editingUser) { // Only auto-gen for new users
+        if (!editingUser) { 
             generateCredentials(newName);
         }
     };
@@ -78,7 +93,7 @@ const Lecturers: React.FC = () => {
     };
 
     const resetForm = () => {
-        setFormData({ username: '', email: '', password: '12345678', full_name: '', phone_number: '' });
+        setFormData({ username: '', email: '', password: '12345678', full_name: '', phone_number: '', department_id: '' });
         setEditingUser(null);
         setError('');
     };
@@ -88,9 +103,10 @@ const Lecturers: React.FC = () => {
         setFormData({
             username: user.username,
             email: user.email,
-            password: '', // Don't show password on edit
+            password: '', 
             full_name: user.full_name,
-            phone_number: user.phone_number || ''
+            phone_number: user.phone_number || '',
+            department_id: ''
         });
         setShowModal(true);
     };
@@ -149,7 +165,7 @@ const Lecturers: React.FC = () => {
                                         className="w-full border border-gray-200 p-3 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
                                         value={formData.username}
                                         readOnly
-                                        disabled={!!editingUser} // Disabled on edit usually, but let's keep it readonly for auto-gen too mostly? User might want to edit.
+                                        disabled={!!editingUser}
                                         onChange={e => setFormData({ ...formData, username: e.target.value })}
                                     />
                                 </div>
@@ -186,6 +202,20 @@ const Lecturers: React.FC = () => {
                                 />
                             </div>
 
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Khoa/Viện</label>
+                                <select
+                                    className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                                    value={formData.department_id}
+                                    onChange={e => setFormData({ ...formData, department_id: e.target.value })}
+                                >
+                                    <option value="">-- Chọn khoa/viện --</option>
+                                    {departments.map(dept => (
+                                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div className="flex justify-end gap-3 pt-4">
                                 <button
                                     type="button"
@@ -216,6 +246,7 @@ const Lecturers: React.FC = () => {
                         <thead className="bg-gray-50/50 text-gray-800 font-semibold uppercase text-xs">
                             <tr>
                                 <th className="px-6 py-4">Giảng Viên</th>
+                                <th className="px-6 py-4">Khoa/Viện</th>
                                 <th className="px-6 py-4">Liên Hệ</th>
                                 <th className="px-6 py-4">Trạng Thái</th>
                                 <th className="px-6 py-4 text-right">Thao Tác</th>
@@ -234,6 +265,9 @@ const Lecturers: React.FC = () => {
                                                 <div className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full w-fit mt-1">@{lecturer.username}</div>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className="text-sm text-gray-600">{lecturer.department_name || '-'}</span>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="space-y-1.5">

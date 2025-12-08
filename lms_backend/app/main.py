@@ -30,11 +30,12 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     return response
 
-from app.routers import auth, students, lecturers, deans
+from app.routers import auth, students, lecturers, deans, statistics
 app.include_router(auth.router)
 app.include_router(students.router)
 app.include_router(lecturers.router)
 app.include_router(deans.router)
+app.include_router(statistics.router)
 
 @app.get("/")
 def read_root():

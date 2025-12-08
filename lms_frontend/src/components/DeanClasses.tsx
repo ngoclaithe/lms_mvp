@@ -34,12 +34,10 @@ const DeanClasses: React.FC = () => {
         fetchData();
     }, []);
 
-    // Auto-generate Class Code
     useEffect(() => {
         if (!editingClass && formData.course_id && formData.semester) {
             const selectedCourse = courses.find(c => c.id === formData.course_id);
             if (selectedCourse) {
-                // Remove dots from semester if present (2023.1 -> 20231)
                 const semClean = formData.semester.replace('.', '');
                 setFormData((prev: any) => ({ ...prev, code: `${selectedCourse.code}${semClean}` }));
             }
@@ -115,7 +113,6 @@ const DeanClasses: React.FC = () => {
         }
     };
 
-    // Helper to get names
     const getCourseName = (id: number) => courses.find(c => c.id === id)?.name || 'Unknown';
     const getCourseCode = (id: number) => courses.find(c => c.id === id)?.code || 'Unknown';
     const getLecturerName = (id: number) => lecturers.find(l => l.id === id)?.full_name || 'Unknown';

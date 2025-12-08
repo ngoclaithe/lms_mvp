@@ -61,10 +61,8 @@ const ClassDetails: React.FC = () => {
 
     const handleOpenAddModal = async () => {
         try {
-            // Fetch all students to select from
             const response = await api.get('/deans/students');
             const allStudents: UserData[] = response.data;
-            // Filter out already enrolled
             const enrolledIds = new Set(enrolledStudents.map(s => s.id));
             const available = allStudents.filter(s => !enrolledIds.has(s.id));
             setAvailableStudents(available);

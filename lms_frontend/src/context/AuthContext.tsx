@@ -14,12 +14,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-    const [user, setUser] = useState<any | null>(null); // Ideally fetched from /me or stored
+    const [user, setUser] = useState<any | null>(null); 
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const storedToken = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user'); // Simple storage for now
+        const storedUser = localStorage.getItem('user'); 
         if (storedToken) {
             setToken(storedToken);
             if (storedUser) setUser(JSON.parse(storedUser));

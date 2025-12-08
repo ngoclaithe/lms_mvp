@@ -30,10 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _isLoading = false;
       });
 
-      // Navigation is handled by GoRouter redirect in main, or explicitly here
-      if (success) {
-        // Router should handle redirect based on AuthStatus but let's be explicit if needed
-      }
+      if (success) {}
     }
   }
 

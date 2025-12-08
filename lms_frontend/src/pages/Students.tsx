@@ -10,21 +10,38 @@ interface UserData {
     phone_number: string;
     is_active: boolean;
     student_code?: string;
+    department_name?: string;
+}
+
+interface Department {
+    id: number;
+    name: string;
 }
 
 const Students: React.FC = () => {
     const [students, setStudents] = useState<UserData[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const [formData, setFormData] = useState({
-        username: '', email: '', password: '12345678', full_name: '', phone_number: '', student_code: ''
+        username: '', email: '', password: '12345678', full_name: '', phone_number: '', student_code: '', department_id: ''
     });
     const [error, setError] = useState('');
 
     useEffect(() => {
         fetchStudents();
+        fetchDepartments();
     }, []);
+
+    const fetchDepartments = async () => {
+        try {
+            const response = await api.get('/deans/departments');
+            setDepartments(response.data);
+        } catch (err) {
+            console.error('Failed to fetch departments:', err);
+        }
+    };
 
     const fetchStudents = async () => {
         try {
@@ -68,14 +85,11 @@ const Students: React.FC = () => {
         str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
         str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
         str = str.replace(/Đ/g, "D");
-        // Some system encode vietnamese combining accent as individual utf-8 characters
-        // \u0300, \u0301, \u0303, \u0309, \u0323
-        str = str.replace(/\u0300|\u0301|\u0303|\u0309|\u0323/g, ""); // ̀ ́ ̃ ̉ ̣ 
-        str = str.replace(/\u02C6|\u0306|\u031B/g, ""); // ˆ ̆ ̛  Â, Ê, Ă, Ơ, Ư
-        // Remove extra spaces
+
+        str = str.replace(/\u0300|\u0301|\u0303|\u0309|\u0323/g, ""); 
+        str = str.replace(/\u02C6|\u0306|\u031B/g, ""); 
         str = str.replace(/ + /g, " ");
         str = str.trim();
-        // Remove punctuations
         // str = str.replace(/!|@|%|\^|\*|\(|\)|\+|\=|\<|\>|\?|\/|,|\.|\:|\;|\'|\"|\&|\#|\[|\]|~|\$|_|`|-|{|}|\||\\/g," ");
         return str;
     }
@@ -94,7 +108,7 @@ const Students: React.FC = () => {
     }, [formData.full_name, formData.student_code, editingUser]);
 
     const resetForm = () => {
-        setFormData({ username: '', email: '', password: '12345678', full_name: '', phone_number: '', student_code: '' });
+        setFormData({ username: '', email: '', password: '12345678', full_name: '', phone_number: '', student_code: '', department_id: '' });
         setEditingUser(null);
         setError('');
     };
@@ -104,10 +118,11 @@ const Students: React.FC = () => {
         setFormData({
             username: user.username,
             email: user.email,
-            password: '', // Don't show password on edit
+            password: '',
             full_name: user.full_name,
             phone_number: user.phone_number || '',
-            student_code: user.student_code || ''
+            student_code: user.student_code || '',
+            department_id: ''
         });
         setShowModal(true);
     };
@@ -209,6 +224,19 @@ const Students: React.FC = () => {
                                     onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Khoa/Viện</label>
+                                <select
+                                    className="w-full border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all"
+                                    value={formData.department_id}
+                                    onChange={e => setFormData({ ...formData, department_id: e.target.value })}
+                                >
+                                    <option value="">-- Chọn khoa/viện --</option>
+                                    {departments.map(dept => (
+                                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                                    ))}
+                                </select>
+                            </div>
 
                             <div className="flex justify-end gap-3 pt-4">
                                 <button
@@ -241,6 +269,7 @@ const Students: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-4">MSSV</th>
                                 <th className="px-6 py-4">Sinh Viên</th>
+                                <th className="px-6 py-4">Khoa/Viện</th>
                                 <th className="px-6 py-4">Liên Hệ</th>
                                 <th className="px-6 py-4">Trạng Thái</th>
                                 <th className="px-6 py-4 text-right">Thao Tác</th>
@@ -262,6 +291,9 @@ const Students: React.FC = () => {
                                                 <div className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full w-fit mt-1">@{student.username}</div>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className="text-sm text-gray-600">{student.department_name || '-'}</span>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="space-y-1.5">

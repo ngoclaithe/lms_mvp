@@ -23,7 +23,6 @@ api.interceptors.response.use(
     (error) => {
         if (error.response?.status === 401) {
             localStorage.removeItem('token');
-            // Redirect to login if needed, or handle in component
             window.location.href = '/login';
         }
         return Promise.reject(error);

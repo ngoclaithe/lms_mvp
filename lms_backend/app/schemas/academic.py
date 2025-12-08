@@ -47,7 +47,7 @@ class ClassCreate(ClassBase):
 
 class Class(ClassBase):
     id: int
-    course: Optional[Course] = None # Simplified
+    course: Optional[Course] = None 
     enrolled_count: int = 0
     class Config:
         from_attributes = True
@@ -76,7 +76,7 @@ class EnrollmentBulkCreate(BaseModel):
 class Enrollment(EnrollmentBase):
     id: int
     grades: List[Grade] = []
-    class_info: Optional[Class] = None # For returning class info
+    class_info: Optional[Class] = None 
     class Config:
         from_attributes = True
 
@@ -84,4 +84,29 @@ class StudentGradeView(BaseModel):
     course_name: str
     class_code: str
     grades: List[Grade]
+
+# Mobile Specific Schemas
+class MobileStudentResponse(BaseModel):
+    enrollment_id: int
+    student_id: str
+    student_name: str
+    midterm_grade: Optional[float] = None
+    final_grade: Optional[float] = None
+    grade: Optional[float] = None 
+class MobileClassResponse(BaseModel):
+    id: int
+    course_name: str
+    lecturer_name: str
+    room: Optional[str] = "Online"
+    day_of_week: Optional[int] = None
+    start_week: Optional[int] = None
+    end_week: Optional[int] = None
+    start_period: Optional[int] = None
+    end_period: Optional[int] = None
+
+class MobileGradeResponse(BaseModel):
+    course_name: str
+    credits: int
+    grade: Optional[float] = None
+    details: List[GradeBase] = []
 
