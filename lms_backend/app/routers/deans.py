@@ -478,11 +478,17 @@ def view_class_grades(
         
     return results
 
-@router.put("/grades/{grade_id}", response_model=GradeSchema)
-def update_grade(
-    grade_id: int,
-    grade_in: GradeSchema, # Using GradeSchema for simplicity, or define GradeUpdate
+@router.get("/classes/{class_id}", response_model=ClassSchema)
+def get_class(
+    class_id: int,
     current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    db_class = db.query(Class).filter(Class.id == class_id).first()
+    if not db_class:
+        raise HTTPException(status_code=404, detail="Class not found")
+    return db_class
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
