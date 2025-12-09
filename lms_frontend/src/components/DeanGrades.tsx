@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Search, GraduationCap, Edit2, Plus, Save, X } from 'lucide-react';
+import { Edit2, Save, X } from 'lucide-react';
 
 interface ClassItem {
     id: number;

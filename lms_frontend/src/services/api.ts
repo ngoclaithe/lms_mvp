@@ -1,9 +1,11 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'http://localhost:8000',
+    // baseURL: 'http://localhost:8000',
+    baseURL: 'https://6a3c1bce013b.ngrok-free.app',
     headers: {
         'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
     },
 });
 
@@ -13,6 +15,9 @@ api.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        config.headers['ngrok-skip-browser-warning'] = 'true';
+
         return config;
     },
     (error) => Promise.reject(error)

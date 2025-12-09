@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request
 from app.database import engine, Base
-from app.models import User, Student, Lecturer, Department, Course, Class, Schedule, Enrollment, Grade
+from app.models import (
+    User, Student, Lecturer, Department, Course,
+    Class, Schedule, Enrollment, Grade
+)
 
-# Create tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="LMS Backend")
@@ -11,14 +13,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 origins = [
     "http://localhost:5173",
+    "http://localhost",              
+    "http://127.0.0.1",
+    "https://your-nginx-domain.com", 
+    "*"                               
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,         
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],            
+    expose_headers=["*"],           
 )
 
 @app.middleware("http")
@@ -26,11 +33,12 @@ async def log_requests(request: Request, call_next):
     body = await request.body()
     print(f"REQUEST: {request.method} {request.url}")
     print(f"HEADERS: {request.headers}")
-    print(f"BODY: {body.decode()}")
+    print(f"BODY: {body.decode(errors='ignore')}")
     response = await call_next(request)
     return response
 
 from app.routers import auth, students, lecturers, deans, statistics
+
 app.include_router(auth.router)
 app.include_router(students.router)
 app.include_router(lecturers.router)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, Trash2, Search, BookOpen, Edit2 } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Edit2 } from 'lucide-react';
 
 interface Course {
     id: number;
