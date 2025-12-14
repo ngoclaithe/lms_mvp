@@ -1,4 +1,6 @@
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -7,19 +9,95 @@ from app.auth.dependencies import get_current_active_user
 from app.database import get_db
 from app.models.user import User, Lecturer, Student
 from app.models.academic import Department, Course, Class, Enrollment, Grade
+from app.models.academic_year import AcademicYear, Semester, AcademicResult
 from app.schemas.academic import (
     CourseCreate, Course as CourseSchema,
     ClassCreate, Class as ClassSchema,
     GradeCreate, Grade as GradeSchema,
     DepartmentCreate, Department as DepartmentSchema
 )
+from app.schemas.academic_year import (
+    AcademicYearCreate, AcademicYear as AcademicYearSchema, AcademicYearUpdate,
+    SemesterCreate, Semester as SemesterSchema, SemesterUpdate, SemesterWithYear,
+    AcademicResult as AcademicResultSchema, AcademicResultDetail
+)
 from app.schemas.user import UserCreate, User as UserSchema, UserUpdate
 from app.models.enums import UserRole
 from app.crud.user import create_user
+from app.crud.user import create_user
+from app.utils.academic_calculator import calculate_and_save_semester_result, calculate_all_students_in_semester
+from app.services.academic_service import (
+    academic_year_service, semester_service, department_service, course_service
+)
+from app.services.class_service import class_service
+from app.services.tuition_service import tuition_service
+from app.models.timetable import Timetable
+from app.services import dean_service
+
 
 router = APIRouter(prefix="/deans", tags=["deans"])
 
+class DeanStudentResult(BaseModel):
+    student_id: int
+    student_code: Optional[str] = None
+    full_name: str
+    gpa: float
+    cpa: float
+    total_credits: int
+    completed_credits: int
+    failed_credits: int
+    cumulative_credits: int
+    semester_code: str
+    semester_name: str
+
+@router.get("/academic-results", response_model=List[DeanStudentResult])
+def list_academic_results(
+    semester_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    from app.services import dean_service
+    
+    if not semester_id:
+        active_sem = db.query(Semester).filter(Semester.is_active == True).first()
+        if active_sem:
+            semester_id = active_sem.id
+    
+    if not semester_id:
+        return []
+    
+    return dean_service.get_academic_results_by_semester(semester_id, db, skip=skip, limit=limit)
+
+@router.get("/students/{student_id}/academic-results")
+def get_student_academic_results(
+    student_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    from app.services import dean_service
+    
+    result = dean_service.get_student_all_results(student_id, db)
+    if not result:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    return result
+
+@router.post("/recalculate-all-cpa")
+def recalculate_all_cpa(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    from app.services import dean_service
+    return dean_service.recalculate_all_cpa(db)
+
+
 def check_dean_role(user: User):
+
     if user.role != UserRole.DEAN:
         raise HTTPException(status_code=403, detail="Not authorized. Dean access required.")
 
@@ -31,14 +109,10 @@ def create_department(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    if db.query(Department).filter(Department.name == dept_in.name).first():
+    if department_service.get_by_name(db, name=dept_in.name):
         raise HTTPException(status_code=400, detail="Department already exists")
     
-    db_dept = Department(**dept_in.dict())
-    db.add(db_dept)
-    db.commit()
-    db.refresh(db_dept)
-    return db_dept
+    return department_service.create(db, obj_in=dept_in)
 
 @router.get("/departments", response_model=List[DepartmentSchema])
 def list_departments(
@@ -46,7 +120,8 @@ def list_departments(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    return db.query(Department).all()
+
+    return department_service.get_multi(db)
 
 @router.put("/departments/{dept_id}", response_model=DepartmentSchema)
 def update_department(
@@ -75,12 +150,11 @@ def delete_department(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    db_dept = db.query(Department).filter(Department.id == dept_id).first()
+    check_dean_role(current_user)
+    db_dept = department_service.remove(db, id=dept_id)
     if not db_dept:
         raise HTTPException(status_code=404, detail="Department not found")
         
-    db.delete(db_dept)
-    db.commit()
     return {"message": "Department deleted"}
 
 # --- Course Management ---
@@ -91,14 +165,10 @@ def create_course(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    if db.query(Course).filter(Course.code == course.code).first():
+    if course_service.get_by_code(db, code=course.code):
         raise HTTPException(status_code=400, detail="Course code already exists")
 
-    db_course = Course(**course.dict())
-    db.add(db_course)
-    db.commit()
-    db.refresh(db_course)
-    return db_course
+    return course_service.create(db, obj_in=course)
 
 @router.get("/courses", response_model=List[CourseSchema])
 def list_courses(
@@ -106,7 +176,7 @@ def list_courses(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    return db.query(Course).all()
+    return course_service.get_multi(db)
 
 @router.put("/courses/{course_id}", response_model=CourseSchema)
 def update_course(
@@ -135,12 +205,11 @@ def delete_course(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    db_course = db.query(Course).filter(Course.id == course_id).first()
+    check_dean_role(current_user)
+    db_course = course_service.remove(db, id=course_id)
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
         
-    db.delete(db_course)
-    db.commit()
     return {"message": "Course deleted"}
 
 # --- Lecturer Management ---
@@ -151,49 +220,20 @@ def create_lecturer(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    if user_in.role != UserRole.LECTURER:
-         raise HTTPException(status_code=400, detail="Role must be lecturer")
-         
-    # Check existing
-    if db.query(User).filter(User.username == user_in.username).first():
-        raise HTTPException(status_code=400, detail="Username already registered")
-        
-    user = create_user(db, user_in)
-    # Create Lecturer profile
-    lecturer_profile = Lecturer(
-        user_id=user.id, 
-        lecturer_code=f"LEC{user.id}",
-        department_id=user_in.department_id
-    )
-    db.add(lecturer_profile)
-    db.commit()
-    
-    return user
+    try:
+        return dean_service.create_lecturer(db, user_in)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/lecturers", response_model=List[UserSchema])
 def list_lecturers(
+    skip: int = 0,
+    limit: int = 100,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    lecturers = db.query(User).filter(User.role == UserRole.LECTURER).all()
-    
-    # Add department_name to each lecturer
-    result = []
-    for lec in lecturers:
-        lec_dict = {
-            "id": lec.id,
-            "username": lec.username,
-            "email": lec.email,
-            "full_name": lec.full_name,
-            "phone_number": lec.phone_number,
-            "role": lec.role,
-            "student_code": None,
-            "department_name": lec.lecturer.department.name if lec.lecturer and lec.lecturer.department else None,
-            "is_active": True
-        }
-        result.append(lec_dict)
-    return result
+    return dean_service.list_lecturers(db, skip=skip, limit=limit)
 
 @router.put("/lecturers/{user_id}", response_model=UserSchema)
 def update_lecturer(
@@ -203,34 +243,19 @@ def update_lecturer(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    db_user = db.query(User).filter(User.id == user_id, User.role == UserRole.LECTURER).first()
-    if not db_user:
+    user = dean_service.update_lecturer(db, user_id, user_in)
+    if not user:
         raise HTTPException(status_code=404, detail="Lecturer not found")
     
-    if user_in.full_name:
-        db_user.full_name = user_in.full_name
-    if user_in.email:
-        db_user.email = user_in.email
-    if user_in.phone_number:
-        db_user.phone_number = user_in.phone_number
-    
-    # Update department if provided
-    if user_in.department_id is not None and db_user.lecturer:
-        db_user.lecturer.department_id = user_in.department_id
-    
-    db.commit()
-    db.refresh(db_user)
-    
-    # Return with department_name
     return {
-        "id": db_user.id,
-        "username": db_user.username,
-        "email": db_user.email,
-        "full_name": db_user.full_name,
-        "phone_number": db_user.phone_number,
-        "role": db_user.role,
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+        "phone_number": user.phone_number,
+        "role": user.role,
         "student_code": None,
-        "department_name": db_user.lecturer.department.name if db_user.lecturer and db_user.lecturer.department else None,
+        "department_name": user.lecturer.department.name if user.lecturer and user.lecturer.department else None,
         "is_active": True
     }
 
@@ -241,12 +266,11 @@ def delete_lecturer(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    db_user = db.query(User).filter(User.id == user_id, User.role == UserRole.LECTURER).first()
-    if not db_user:
+    check_dean_role(current_user)
+    user = dean_service.delete_lecturer(db, user_id=user_id)
+    if not user:
         raise HTTPException(status_code=404, detail="Lecturer not found")
         
-    db.delete(db_user)
-    db.commit()
     return {"message": "Lecturer deleted"}
 
 # --- Student Management ---
@@ -257,61 +281,20 @@ def create_student(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    if user_in.role != UserRole.STUDENT:
-         raise HTTPException(status_code=400, detail="Role must be student")
-         
-    if db.query(User).filter(User.username == user_in.username).first():
-        raise HTTPException(status_code=400, detail="Username already registered")
-        
-    user = create_user(db, user_in)
-    
-    # Create Student profile
-    # Use provided student_code or fallback to auto-gen
-    code = user_in.student_code if user_in.student_code else f"STU{user.id}"
-    
-    # Check if student_code exists
-    if db.query(Student).filter(Student.student_code == code).first():
-         # Rollback user creation if code exists - simplified: just error
-         # Ideally we should delete the user we just created or check before
-         # But for MVP, let's just error (transaction will rollback if we raise?)
-         # Actually with commit above inside create_user, it might persist.
-         # For MVP, let's assume unique or handle generic integrity error
-         pass
-
-    student_profile = Student(
-        user_id=user.id, 
-        student_code=code,
-        department_id=user_in.department_id
-    )
-    db.add(student_profile)
-    db.commit()
-    
-    return user
+    try:
+        return dean_service.create_student(db, user_in)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/students", response_model=List[UserSchema])
 def list_students(
+    skip: int = 0,
+    limit: int = 100,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    students = db.query(User).filter(User.role == UserRole.STUDENT).all()
-    
-    # Add department_name and student_code to each student
-    result = []
-    for stu in students:
-        stu_dict = {
-            "id": stu.id,
-            "username": stu.username,
-            "email": stu.email,
-            "full_name": stu.full_name,
-            "phone_number": stu.phone_number,
-            "role": stu.role,
-            "student_code": stu.student.student_code if stu.student else None,
-            "department_name": stu.student.department.name if stu.student and stu.student.department else None,
-            "is_active": True
-        }
-        result.append(stu_dict)
-    return result
+    return dean_service.list_students(db, skip=skip, limit=limit)
 
 @router.put("/students/{user_id}", response_model=UserSchema)
 def update_student(
@@ -321,38 +304,21 @@ def update_student(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    db_user = db.query(User).filter(User.id == user_id, User.role == UserRole.STUDENT).first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="Student not found")
-    
-    if user_in.full_name:
-        db_user.full_name = user_in.full_name
-    if user_in.email:
-        db_user.email = user_in.email
-    if user_in.phone_number:
-        db_user.phone_number = user_in.phone_number
-    
-    # Update student code if provided
-    if user_in.student_code and db_user.student:
-        db_user.student.student_code = user_in.student_code
-    
-    # Update department if provided
-    if user_in.department_id is not None and db_user.student:
-        db_user.student.department_id = user_in.department_id
-    
-    db.commit()
-    db.refresh(db_user)
+    check_dean_role(current_user)
+    user = dean_service.update_student(db, user_id, user_in)
+    if not user:
+         raise HTTPException(status_code=404, detail="Student not found")
     
     # Return with department_name
     return {
-        "id": db_user.id,
-        "username": db_user.username,
-        "email": db_user.email,
-        "full_name": db_user.full_name,
-        "phone_number": db_user.phone_number,
-        "role": db_user.role,
-        "student_code": db_user.student.student_code if db_user.student else None,
-        "department_name": db_user.student.department.name if db_user.student and db_user.student.department else None,
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+        "phone_number": user.phone_number,
+        "role": user.role,
+        "student_code": user.student.student_code if user.student else None,
+        "department_name": user.student.department.name if user.student and user.student.department else None,
         "is_active": True
     }
 
@@ -363,12 +329,11 @@ def delete_student(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    db_user = db.query(User).filter(User.id == user_id, User.role == UserRole.STUDENT).first()
-    if not db_user:
+    check_dean_role(current_user)
+    user = dean_service.delete_student(db, user_id=user_id)
+    if not user:
         raise HTTPException(status_code=404, detail="Student not found")
         
-    db.delete(db_user)
-    db.commit()
     return {"message": "Student deleted"}
 
 # --- Class Management ---
@@ -380,21 +345,11 @@ def create_class(
 ):
     check_dean_role(current_user)
     
-    lecturer = db.query(Lecturer).filter(Lecturer.user_id == class_in.lecturer_id).first()
-    if not lecturer:
-        user = db.query(User).filter(User.id == class_in.lecturer_id, User.role == UserRole.LECTURER).first()
-        if user:
-            lecturer = Lecturer(user_id=user.id, lecturer_code=f"LEC{user.id}")
-            db.add(lecturer)
-            db.commit()
-        else:
-            raise HTTPException(status_code=400, detail="Invaild lecturer selected")
-            
-    db_class = Class(**class_in.dict())
-    db.add(db_class)
-    db.commit()
-    db.refresh(db_class)
-    return db_class
+    check_dean_role(current_user)
+    try:
+        return class_service.create_class(db, class_in)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/classes", response_model=List[ClassSchema])
 def list_classes(
@@ -404,9 +359,9 @@ def list_classes(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    classes = db.query(Class).offset(skip).limit(limit).all()
+    check_dean_role(current_user)
+    classes = class_service.get_multi(db, skip=skip, limit=limit)
     
-    # Calculate enrolled count manually for now
     for c in classes:
         c.enrolled_count = db.query(Enrollment).filter(Enrollment.class_id == c.id).count()
         
@@ -420,16 +375,12 @@ def update_class(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    db_class = db.query(Class).filter(Class.id == class_id).first()
-    if not db_class:
+    check_dean_role(current_user)
+    updated_class = class_service.update_class(db, class_id, class_in)
+    if not updated_class:
         raise HTTPException(status_code=404, detail="Class not found")
         
-    for key, value in class_in.dict().items():
-        setattr(db_class, key, value)
-        
-    db.commit()
-    db.refresh(db_class)
-    return db_class
+    return updated_class
 
 @router.delete("/classes/{class_id}")
 def delete_class(
@@ -438,22 +389,40 @@ def delete_class(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    db_class = db.query(Class).filter(Class.id == class_id).first()
+    check_dean_role(current_user)
+    db_class = class_service.remove(db, id=class_id)
     if not db_class:
         raise HTTPException(status_code=404, detail="Class not found")
-        
-    db.delete(db_class)
-    db.commit()
+
     return {"message": "Class deleted"}
+
+@router.post("/classes/{class_id}/timetable/generate")
+def generate_class_timetable(
+    class_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Tạo thời khóa biểu chi tiết cho lớp học"""
+    check_dean_role(current_user)
+    class_service.generate_timetable(db, class_id)
+    return {"message": "Timetable generated"}
+
+@router.get("/classes/{class_id}/timetable")
+def get_class_timetable(
+    class_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Xem thời khóa biểu chi tiết của lớp học"""
+    check_dean_role(current_user)
+    return db.query(Timetable).filter(Timetable.class_id == class_id).order_by(Timetable.date, Timetable.start_period).all()
 
 # --- Enrollment Management ---
 @router.post("/classes/{class_id}/enrollments/bulk")
 def bulk_enroll_students(
     class_id: int,
-    enrollment_in: dict, # Using dict to avoid circular import or schema issues if simple
-    # But better to use Schema if I imported it. I created EnrollmentBulkCreate.
-    # Let's simple use List[int] directly or expected body.
-    # Let's import EnrollmentBulkCreate.
+    enrollment_in: dict, 
+
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -474,21 +443,31 @@ def bulk_enroll_students(
 
     added_count = 0
     for student_id in student_ids:
-        # Check if student exists (by User ID)
         student = db.query(Student).filter(Student.user_id == student_id).first()
         if not student:
-            continue # Skip invalid students
+            continue 
             
-        # Check if already enrolled
         existing = db.query(Enrollment).filter(Enrollment.class_id == class_id, Enrollment.student_id == student_id).first()
         if existing:
             continue
+
+        if class_service.check_schedule_conflict(db, student_id, class_id):
+
+             raise HTTPException(status_code=400, detail=f"Schedule conflict detected for student ID {student_id}")
             
         new_enrollment = Enrollment(class_id=class_id, student_id=student_id)
         db.add(new_enrollment)
         added_count += 1
         
     db.commit()
+
+    if db_class.semester:
+        for student_id in student_ids:
+            try:
+                tuition_service.calculate_tuition(db, student_id, db_class.semester)
+            except Exception as e:
+                print(f"Error calculating tuition for student {student_id}: {e}")
+
     return {"message": f"Successfully added {added_count} students"}
 
 @router.get("/classes/{class_id}/students", response_model=List[UserSchema])
@@ -498,15 +477,13 @@ def list_class_students(
     db: Session = Depends(get_db)
 ):
     check_dean_role(current_user)
-    # Join Enrollment and Student and User
-    # Return Users who are students in this class
     results = db.query(User).join(Student).join(Enrollment).filter(Enrollment.class_id == class_id).all()
     return results
 
 @router.put("/grades/{grade_id}", response_model=GradeSchema)
 def update_grade(
     grade_id: int,
-    grade_in: dict, # Using dict for simplicity, ideally GradeBase
+    grade_in: dict, 
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -521,6 +498,16 @@ def update_grade(
     
     db.commit()
     db.refresh(db_grade)
+    
+    try:
+        enrollment = db_grade.enrollment
+        class_obj = enrollment.class_
+        semester = db.query(Semester).filter(Semester.code == class_obj.semester).first()
+        if semester:
+            calculate_and_save_semester_result(enrollment.student_id, semester.id, db)
+    except Exception as e:
+        print(f"ERROR calculating academic result: {e}")
+    
     return db_grade
 
 @router.post("/grades", response_model=GradeSchema)
@@ -531,14 +518,10 @@ def create_grade(
 ):
     check_dean_role(current_user)
     
-    # Check enrollment existence
     enrollment = db.query(Enrollment).filter(Enrollment.id == grade_in.enrollment_id).first()
     if not enrollment:
         raise HTTPException(status_code=404, detail="Enrollment not found")
         
-    # Check if grade type already exists for this enrollment (optional, but good practice)
-    # For now allow multiple, or maybe unique per type? usually unique per type (midterm/final)
-    # Let's check if collision
     existing = db.query(Grade).filter(
         Grade.enrollment_id == grade_in.enrollment_id, 
         Grade.grade_type == grade_in.grade_type
@@ -551,6 +534,15 @@ def create_grade(
     db.add(db_grade)
     db.commit()
     db.refresh(db_grade)
+    
+    try:
+        class_obj = enrollment.class_
+        semester = db.query(Semester).filter(Semester.code == class_obj.semester).first()
+        if semester:
+            calculate_and_save_semester_result(enrollment.student_id, semester.id, db)
+    except Exception as e:
+        print(f"ERROR calculating academic result: {e}")
+    
     return db_grade
 
 # --- Grade Management ---
@@ -562,7 +554,6 @@ def view_class_grades(
 ):
     check_dean_role(current_user)
     
-    # Check if class exists
     class_obj = db.query(Class).filter(Class.id == class_id).first()
     if not class_obj:
         raise HTTPException(status_code=404, detail="Class not found")
@@ -602,3 +593,224 @@ def get_class(
         raise HTTPException(status_code=404, detail="Class not found")
     return db_class
 
+# ============= ACADEMIC YEAR MANAGEMENT =============
+
+@router.post("/academic-years", response_model=AcademicYearSchema)
+def create_academic_year(
+    year_in: AcademicYearCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    
+    if academic_year_service.get_by_year(db, year_in.year):
+        raise HTTPException(status_code=400, detail="Academic year already exists")
+    
+    return academic_year_service.create(db=db, obj_in=year_in)
+
+@router.get("/academic-years", response_model=List[AcademicYearSchema])
+def list_academic_years(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+
+    return db.query(AcademicYear).order_by(AcademicYear.start_date.desc()).all()
+
+@router.get("/academic-years/{year_id}", response_model=AcademicYearSchema)
+def get_academic_year(
+    year_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    db_year = academic_year_service.get(db, year_id)
+    if not db_year:
+        raise HTTPException(status_code=404, detail="Academic year not found")
+    return db_year
+
+@router.put("/academic-years/{year_id}", response_model=AcademicYearSchema)
+def update_academic_year(
+    year_id: int,
+    year_in: AcademicYearUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    db_year = academic_year_service.get(db, year_id)
+    if not db_year:
+        raise HTTPException(status_code=404, detail="Academic year not found")
+    
+    return academic_year_service.update(db=db, db_obj=db_year, obj_in=year_in)
+
+@router.delete("/academic-years/{year_id}")
+def delete_academic_year(
+    year_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    db_year = academic_year_service.get(db, year_id)
+    if not db_year:
+        raise HTTPException(status_code=404, detail="Academic year not found")
+    
+    academic_year_service.remove(db=db, id=year_id)
+    return {"message": "Academic year deleted"}
+
+# ============= SEMESTER MANAGEMENT =============
+
+@router.post("/semesters", response_model=SemesterSchema)
+def create_semester(
+    semester_in: SemesterCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    
+    if semester_service.get_by_code(db, semester_in.code):
+        raise HTTPException(status_code=400, detail="Semester code already exists")
+    
+    if not academic_year_service.get(db, semester_in.academic_year_id):
+        raise HTTPException(status_code=404, detail="Academic year not found")
+    
+    return semester_service.create(db=db, obj_in=semester_in)
+
+@router.get("/semesters", response_model=List[SemesterWithYear])
+def list_semesters(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    return db.query(Semester).order_by(Semester.start_date.desc()).all()
+
+@router.get("/semesters/{semester_id}", response_model=SemesterWithYear)
+def get_semester(
+    semester_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    db_semester = semester_service.get(db, semester_id)
+    if not db_semester:
+        raise HTTPException(status_code=404, detail="Semester not found")
+    return db_semester
+
+@router.put("/semesters/{semester_id}", response_model=SemesterSchema)
+def update_semester(
+    semester_id: int,
+    semester_in: SemesterUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    db_semester = semester_service.get(db, semester_id)
+    if not db_semester:
+        raise HTTPException(status_code=404, detail="Semester not found")
+    
+    return semester_service.update(db=db, db_obj=db_semester, obj_in=semester_in)
+
+@router.delete("/semesters/{semester_id}")
+def delete_semester(
+    semester_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    if not semester_service.get(db, semester_id):
+        raise HTTPException(status_code=404, detail="Semester not found")
+    
+    semester_service.remove(db=db, id=semester_id)
+    return {"message": "Semester deleted"}
+
+@router.post("/semesters/{semester_id}/activate")
+def activate_semester(
+    semester_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    
+    db_semester = db.query(Semester).filter(Semester.id == semester_id).first()
+    if not db_semester:
+        raise HTTPException(status_code=404, detail="Semester not found")
+    
+    db.query(Semester).update({"is_active": False})
+    
+    db_semester.is_active = True
+    db.commit()
+    db.refresh(db_semester)
+    
+    return {"message": f"Semester {db_semester.code} activated", "semester": db_semester}
+
+# ============= ACADEMIC RESULTS MANAGEMENT =============
+
+@router.post("/semesters/{semester_id}/calculate-results")
+def calculate_semester_results(
+    semester_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    
+    try:
+        count = calculate_all_students_in_semester(semester_id, db)
+        return {"message": f"Calculated results for {count} students", "count": count}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.post("/students/{student_id}/calculate-result/{semester_id}")
+def calculate_student_semester_result(
+    student_id: int,
+    semester_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    
+    if not db.query(Student).filter(Student.user_id == student_id).first():
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    try:
+        result = calculate_and_save_semester_result(student_id, semester_id, db)
+        return {
+            "message": "Result calculated successfully",
+            "gpa": result.gpa,
+            "cpa": result.cpa
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/students/{student_id}/results", response_model=List[AcademicResultDetail])
+def get_student_results(
+    student_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    check_dean_role(current_user)
+    
+    if not db.query(Student).filter(Student.user_id == student_id).first():
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    results = db.query(AcademicResult).filter(
+        AcademicResult.student_id == student_id
+    ).join(Semester).order_by(Semester.start_date).all()
+    
+    result_list = []
+    for result in results:
+        result_dict = {
+            "id": result.id,
+            "student_id": result.student_id,
+            "semester_id": result.semester_id,
+            "gpa": result.gpa,
+            "cpa": result.cpa,
+            "total_credits": result.total_credits,
+            "completed_credits": result.completed_credits,
+            "failed_credits": result.failed_credits,
+            "cumulative_credits": result.cumulative_credits,
+            "calculated_at": result.calculated_at,
+            "semester_code": result.semester.code,
+            "semester_name": result.semester.name
+        }
+        result_list.append(result_dict)
+    
+    return result_list

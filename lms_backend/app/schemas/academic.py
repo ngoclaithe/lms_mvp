@@ -41,6 +41,7 @@ class ClassBase(BaseModel):
     day_of_week: Optional[int] = None
     start_period: Optional[int] = None
     end_period: Optional[int] = None
+    room: Optional[str] = None
 
 class ClassCreate(ClassBase):
     pass
@@ -109,4 +110,15 @@ class MobileGradeResponse(BaseModel):
     credits: int
     grade: Optional[float] = None
     details: List[GradeBase] = []
+
+class MobileTimetableResponse(BaseModel):
+    id: int
+    date: date
+    start_period: int
+    end_period: int
+    room: Optional[str] = None
+    course_name: str
+    class_code: str
+    lecturer_name: str
+
 

@@ -70,11 +70,26 @@ class _LecturerDashboardState extends State<LecturerDashboard> with SingleTicker
                               backgroundColor: Colors.indigo,
                               child: Icon(Icons.class_, color: Colors.white),
                             ),
-                            title: Text(cls['course_name'] ?? 'Class ID: ${cls['id']}'),
-                            subtitle: Text(
-                              cls['day_of_week'] != null 
-                                ? 'Thứ ${cls['day_of_week'] + 1} - Tiết ${cls['start_period']}-${cls['end_period']}'
-                                : 'Chưa xếp lịch'
+                            title: Text(
+                              cls['code'] ?? 'Lớp ${cls['id']}',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (cls['course'] != null)
+                                  Text(
+                                    cls['course']['name'] ?? '',
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  cls['day_of_week'] != null 
+                                    ? 'Thứ ${cls['day_of_week'] + 1} - Tiết ${cls['start_period']}-${cls['end_period']}${cls['room'] != null ? ' - ${cls['room']}' : ''}'
+                                    : 'Chưa xếp lịch',
+                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                              ],
                             ),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () {
@@ -83,7 +98,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> with SingleTicker
                                 MaterialPageRoute(
                                   builder: (context) => LecturerClassDetailScreen(
                                     classId: cls['id'],
-                                    courseName: cls['course_name'] ?? 'Class Detail',
+                                    courseName: '${cls['code'] ?? 'Lớp ${cls['id']}'} - ${cls['course']?['name'] ?? 'Chi tiết lớp'}',
                                   ),
                                 ),
                               );
@@ -92,7 +107,6 @@ class _LecturerDashboardState extends State<LecturerDashboard> with SingleTicker
                         );
                       },
                     ),
-          // Profile Tab
           const ProfileScreen(),
         ],
       ),

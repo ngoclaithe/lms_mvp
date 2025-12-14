@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
-import 'student_provider.dart';
 import '../../shared/profile_screen.dart';
+import 'student_home_screen.dart';
+import 'search_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -11,154 +12,75 @@ class StudentDashboard extends StatefulWidget {
   State<StudentDashboard> createState() => _StudentDashboardState();
 }
 
-class _StudentDashboardState extends State<StudentDashboard> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _StudentDashboardState extends State<StudentDashboard> {
+  int _currentIndex = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    final provider = context.read<StudentProvider>();
-    Future.microtask(() {
-       provider.fetchClasses();
-       provider.fetchGrades();
-    });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+  final List<Widget> _screens = [
+    const StudentHomeScreen(),
+    const SearchScreen(),
+    const ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final studentProvider = context.watch<StudentProvider>();
     final authProvider = context.read<AuthProvider>();
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Sinh Viên Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => authProvider.logout(),
+        title: Text(_getTitle()),
+        elevation: 0,
+        actions: _currentIndex == 0
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => authProvider.logout(),
+                )
+              ]
+            : null,
+      ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Trang chủ',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Tìm kiếm',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Cá nhân',
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Lớp Học', icon: Icon(Icons.class_)),
-            Tab(text: 'Bảng Điểm', icon: Icon(Icons.grade)),
-            Tab(text: 'Cá Nhân', icon: Icon(Icons.person)),
-          ],
-        ),
       ),
-      body: studentProvider.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                // Classes Tab
-                RefreshIndicator(
-                  onRefresh: () => studentProvider.fetchClasses(),
-                  child: studentProvider.classes.isEmpty
-                      ? const Center(child: Text('Chưa đăng ký lớp học nào'))
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: studentProvider.classes.length,
-                          itemBuilder: (context, index) {
-                            final cls = studentProvider.classes[index];
-                            return Card(
-                              child: ListTile(
-                                leading: const Icon(Icons.book, color: Colors.blue),
-                                title: Text(cls['course_name'] ?? 'Class ${cls['id']}'),
-                                subtitle: Text(
-                                    'Phòng: ${cls['room'] ?? 'N/A'} - Giảng viên: ${cls['lecturer_name'] ?? 'N/A'}'),
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: Text(cls['course_name'] ?? 'Chi tiết lớp học'),
-                                      content: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text('Giảng viên: ${cls['lecturer_name'] ?? 'N/A'}'),
-                                          const SizedBox(height: 8),
-                                          Text('Phòng học: ${cls['room'] ?? 'Online'}'),
-                                          const SizedBox(height: 8),
-                                          Text('Thứ: ${cls['day_of_week'] != null ? 'Thứ ${cls['day_of_week'] + 1}' : 'Chưa xếp'}'),
-                                          Text('Tuần học: ${cls['start_week'] ?? '?'} - ${cls['end_week'] ?? '?'}'),
-                                          Text('Tiết học: ${cls['start_period'] ?? '?'} - ${cls['end_period'] ?? '?'}'),
-                                        ],
-                                      ),
-                                      actions: [
-                                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                // Grades Tab
-                RefreshIndicator(
-                  onRefresh: () => studentProvider.fetchGrades(),
-                  child: studentProvider.grades.isEmpty
-                      ? const Center(child: Text('Chưa có điểm số'))
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: studentProvider.grades.length,
-                          itemBuilder: (context, index) {
-                            final grade = studentProvider.grades[index];
-                            return Card(
-                              color: grade['grade'] != null && grade['grade'] >= 5.0 ? Colors.green[50] : Colors.red[50],
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: grade['grade'] != null && grade['grade'] >= 5.0 ? Colors.green : Colors.red,
-                                  child: Text(
-                                    grade['grade']?.toString() ?? '?',
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                title: Text(grade['course_name'] ?? 'Unknown Course'),
-                                subtitle: Text('Tín chỉ: ${grade['credits'] ?? 3}'),
-                                onTap: () {
-                                  final details = grade['details'] as List<dynamic>? ?? [];
-                                  showDialog(
-                                    context: context, 
-                                    builder: (context) => AlertDialog(
-                                      title: Text('Điểm chi tiết: ${grade['course_name']}'),
-                                      content: details.isEmpty 
-                                        ? const Text('Chưa có điểm thành phần')
-                                        : Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: details.map((d) {
-                                              String label = d['grade_type'] == 'midterm' ? 'Giữa kỳ' : (d['grade_type'] == 'final' ? 'Cuối kỳ' : d['grade_type']);
-                                              return ListTile(
-                                                title: Text(label),
-                                                trailing: Text(d['score'].toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
-                                              );
-                                            }).toList(),
-                                          ),
-                                      actions: [
-                                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))
-                                      ],
-                                    )
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                // Profile Tab
-                const ProfileScreen(),
-              ],
-            ),
     );
+  }
+
+  String _getTitle() {
+    switch (_currentIndex) {
+      case 0:
+        return 'Trang chủ';
+      case 1:
+        return 'Tìm kiếm';
+      case 2:
+        return 'Cá nhân';
+      default:
+        return 'Dashboard';
+    }
   }
 }

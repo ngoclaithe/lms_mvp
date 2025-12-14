@@ -1,15 +1,14 @@
 from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
 from app.auth.dependencies import get_current_active_user
 from app.database import get_db
-from app.models.user import User, Student
-from app.models.academic import Enrollment, Grade, Class
-from app.schemas.academic import Enrollment as EnrollmentSchema, StudentGradeView, Class as ClassSchema, MobileGradeResponse, MobileClassResponse
-from app.schemas.user import UserUpdate, User as UserSchema
+from app.models.user import User
 from app.models.enums import UserRole
+from app.schemas.academic import MobileGradeResponse, MobileClassResponse, MobileTimetableResponse
+from app.schemas.academic_year import MobileSemesterDetailResponse
+from app.schemas.user import UserUpdate, User as UserSchema
+from app.services import student_service
 
 router = APIRouter(prefix="/students", tags=["students"])
 
@@ -25,7 +24,7 @@ def read_student_profile(
     if current_user.student and current_user.student.department:
         department_name = current_user.student.department.name
     
-    user_dict = {
+    return {
         "id": current_user.id,
         "username": current_user.username,
         "email": current_user.email,
@@ -36,7 +35,6 @@ def read_student_profile(
         "department_name": department_name,
         "is_active": True
     }
-    return user_dict
 
 @router.put("/me", response_model=UserSchema)
 def update_student_profile(
@@ -70,38 +68,7 @@ def read_student_grades(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    # Fetch enrollments with grades
-    enrollments = db.query(Enrollment).filter(Enrollment.student_id == student.user_id).all()
-    
-    results = []
-    for enrollment in enrollments:
-        class_info = enrollment.class_
-        course_info = class_info.course
-        
-        display_grade = None
-        for g in enrollment.grades:
-            if g.grade_type == 'final':
-                display_grade = g.score
-                break
-        if display_grade is None and enrollment.grades:
-             display_grade = enrollment.grades[0].score
-
-        grade_details = [
-            {
-                'grade_type': g.grade_type,
-                'score': g.score,
-                'weight': g.weight
-            }
-            for g in enrollment.grades
-        ]
-
-        results.append(MobileGradeResponse(
-            course_name=course_info.name,
-            credits=course_info.credits,
-            grade=display_grade,
-            details=grade_details
-        ))
-    return results
+    return student_service.get_student_grades(student.user_id, db)
 
 @router.get("/my-classes", response_model=List[MobileClassResponse])
 def read_student_classes(
@@ -115,19 +82,65 @@ def read_student_classes(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    enrollments = db.query(Enrollment).filter(Enrollment.student_id == student.user_id).all()
-    results = []
-    for item in enrollments:
-        cls = item.class_
-        results.append(MobileClassResponse(
-            id=cls.id,
-            course_name=cls.course.name,
-            lecturer_name=cls.lecturer.user.full_name if cls.lecturer else "Unknown",
-            room="Online", # Placeholder
-            day_of_week=cls.day_of_week,
-            start_week=cls.start_week,
-            end_week=cls.end_week,
-            start_period=cls.start_period,
-            end_period=cls.end_period
-        ))
-    return results
+    return student_service.get_student_classes(student.user_id, db)
+
+@router.get("/my-projects", response_model=List[MobileClassResponse])
+def read_student_projects(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    student = current_user.student
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    return student_service.get_student_projects(student.user_id, db)
+
+@router.get("/academic-summary")
+def get_academic_summary(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    student = current_user.student
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    
+    return student_service.get_academic_summary(student.user_id, db)
+
+@router.get("/my-results/{semester_code}", response_model=MobileSemesterDetailResponse)
+def read_student_semester_detail(
+    semester_code: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    student = current_user.student
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    
+    result = student_service.get_semester_detail(student.user_id, semester_code, db)
+    if not result:
+        raise HTTPException(status_code=404, detail="Academic result not found for this semester")
+    
+    return result
+
+@router.get("/my-timetable", response_model=List[MobileTimetableResponse])
+def read_student_timetable(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    student = current_user.student
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    return student_service.get_student_timetable(student.user_id, db)

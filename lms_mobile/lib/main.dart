@@ -8,6 +8,11 @@ import 'features/lecturer/lecturer_provider.dart';
 import 'features/student/student_provider.dart';
 import 'features/student/student_dashboard.dart';
 import 'features/lecturer/lecturer_dashboard.dart';
+import 'features/student/reports_screen.dart';
+import 'features/student/create_report_screen.dart';
+import 'features/student/report_detail_screen.dart';
+import 'features/student/notifications_screen.dart';
+import 'shared/profile_screen.dart';
 
 void main() {
   runApp(
@@ -56,6 +61,29 @@ class MyApp extends StatelessWidget {
         GoRoute(
           path: '/lecturer',
           builder: (context, state) => const LecturerDashboard(),
+        ),
+        GoRoute(
+          path: '/reports',
+          builder: (context, state) => const ReportsScreen(),
+        ),
+        GoRoute(
+          path: '/create-report',
+          builder: (context, state) => const CreateReportScreen(),
+        ),
+        GoRoute(
+          path: '/report-detail',
+          builder: (context, state) {
+            final reportId = state.extra as int;
+            return ReportDetailScreen(reportId: reportId);
+          },
+        ),
+        GoRoute(
+          path: '/notifications',
+          builder: (context, state) => const NotificationsScreen(),
+        ),
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) => const ProfileScreen(),
         ),
       ],
     );

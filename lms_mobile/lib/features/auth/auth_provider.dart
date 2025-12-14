@@ -75,7 +75,6 @@ class AuthProvider with ChangeNotifier {
         return false;
       }
 
-      // Store token
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('access_token', token);
       await prefs.setString('user_role', roleStr);

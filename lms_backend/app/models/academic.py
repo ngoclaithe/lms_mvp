@@ -11,7 +11,6 @@ class Department(Base):
 
     students = relationship("Student", back_populates="department")
     lecturers = relationship("Lecturer", back_populates="department")
-    lecturers = relationship("Lecturer", back_populates="department")
 
 class Course(Base):
     __tablename__ = "courses"
@@ -31,17 +30,19 @@ class Class(Base):
     lecturer_id = Column(Integer, ForeignKey("lecturers.user_id"))
     semester = Column(String)
     max_students = Column(Integer, default=50)
-    # Schedule info
+    
     start_week = Column(Integer)
     end_week = Column(Integer)
     day_of_week = Column(Integer) # 2=Mon, 8=Sun
     start_period = Column(Integer)
     end_period = Column(Integer)
+    room = Column(String, nullable=True)
 
     course = relationship("Course", back_populates="classes")
     lecturer = relationship("Lecturer", back_populates="classes")
     enrollments = relationship("Enrollment", back_populates="class_")
     schedules = relationship("Schedule", back_populates="class_")
+    timetables = relationship("Timetable", back_populates="class_")
 
 class Schedule(Base):
     __tablename__ = "schedules"

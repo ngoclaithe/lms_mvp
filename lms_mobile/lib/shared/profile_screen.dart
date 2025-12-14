@@ -125,73 +125,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_profile == null)
       return const Center(child: Text('Không thể tải hồ sơ'));
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          const CircleAvatar(radius: 50, child: Icon(Icons.person, size: 50)),
-          const SizedBox(height: 16),
-          Text(
-            _profile?['full_name'] ?? 'No Name',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            '@${_profile?['username']}',
-            style: const TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 32),
-
-          _buildInfoCard('Email', _profile?['email'] ?? '-', Icons.email),
-          const SizedBox(height: 12),
-          _buildInfoCard(
-            'Số điện thoại',
-            _profile?['phone_number'] ?? '-',
-            Icons.phone,
-          ),
-          const SizedBox(height: 12),
-          if (_profile?['student_code'] != null)
-            _buildInfoCard(
-              'MSSV',
-              _profile?['student_code'] ?? '-',
-              Icons.badge,
-            ),
-          if (_profile?['student_code'] != null) const SizedBox(height: 12),
-          if (_profile?['department_name'] != null)
-            _buildInfoCard(
-              'Khoa/Viện',
-              _profile?['department_name'] ?? '-',
-              Icons.business,
-            ),
-          if (_profile?['department_name'] != null) const SizedBox(height: 24),
-
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _showChangePasswordDialog,
-              icon: const Icon(Icons.lock),
-              label: const Text('Đổi mật khẩu'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Hồ sơ cá nhân', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.indigo,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      backgroundColor: Colors.grey[100],
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Colors.indigo,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                    child: const CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.person, size: 60, color: Colors.indigo),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _profile?['full_name'] ?? 'Sinh viên',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '@${_profile?['username'] ?? 'User'}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                  const SizedBox(height: 30),
+                ],
               ),
             ),
-          ),
+            
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  _buildInfoCard('Thông tin liên hệ', [
+                    _buildInfoRow(Icons.email, 'Email', _profile?['email'] ?? '-'),
+                    _buildInfoRow(Icons.phone, 'Số điện thoại', _profile?['phone_number'] ?? '-'),
+                  ]),
+                  
+                  const SizedBox(height: 16),
+                  
+                  if (_profile?['student_code'] != null || _profile?['department_name'] != null)
+                    _buildInfoCard('Thông tin học tập', [
+                      if (_profile?['student_code'] != null)
+                        _buildInfoRow(Icons.badge, 'MSSV', _profile?['student_code']),
+                      if (_profile?['department_name'] != null)
+                        _buildInfoRow(Icons.business, 'Khoa/Viện', _profile?['department_name']),
+                    ]),
+
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: _showChangePasswordDialog,
+                      icon: const Icon(Icons.lock),
+                      label: const Text('Đổi mật khẩu', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.indigo,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(String title, List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const SizedBox(height: 16),
+          ...children,
         ],
       ),
     );
   }
 
-  Widget _buildInfoCard(String label, String value, IconData icon) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon, color: Colors.blue),
-        title: Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        subtitle: Text(
-          value,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.indigo.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Colors.indigo, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.black87)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

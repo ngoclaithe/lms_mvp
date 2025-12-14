@@ -117,7 +117,6 @@ class _LecturerClassDetailScreenState extends State<LecturerClassDetailScreen> {
           ElevatedButton(
             onPressed: () {
               bool hasUpdate = false;
-
               final midterm = double.tryParse(midtermController.text);
               if (midterm != null && midterm >= 0 && midterm <= 10) {
                 _updateGrade(student['enrollment_id'], 'midterm', midterm);
