@@ -12,6 +12,8 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "sqlalchemy>=2.0.44",
     "uvicorn>=0.38.0",
+    "python-socketio>=5.11.0",
+    "cryptography>=42.0.0",
 ]
 
 [dependency-groups]

@@ -3,7 +3,8 @@ from app.database import engine, Base
 from app.models import (
     User, Student, Lecturer, Department, Course,
     Class, Schedule, Enrollment, Grade,
-    AcademicYear, Semester, AcademicResult, CumulativeResult, Report, Tuition, Setting
+    AcademicYear, Semester, AcademicResult, CumulativeResult, Report, Tuition, Setting,
+    ChatGroup, ChatMessage, ChatGroupMember
 )
 
 app = FastAPI(title="LMS Backend")
@@ -36,7 +37,7 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     return response
 
-from app.routers import auth, students, lecturers, deans, statistics, reports, tuitions, search
+from app.routers import auth, students, lecturers, deans, statistics, reports, tuitions, search, chat
 
 app.include_router(auth.router)
 app.include_router(students.router)
@@ -46,6 +47,10 @@ app.include_router(statistics.router)
 app.include_router(reports.router)
 app.include_router(tuitions.router)
 app.include_router(search.router)
+app.include_router(chat.router)
+
+from app.services.socket_service import socket_app
+app.mount("/socket.io", socket_app)
 
 @app.on_event("startup")
 async def startup():

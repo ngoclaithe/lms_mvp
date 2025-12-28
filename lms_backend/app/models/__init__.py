@@ -8,3 +8,4 @@ from app.models.enums import UserRole
 from app.models.report import Report
 from app.models.tuition import Tuition
 from app.models.setting import Setting
+from app.models.chat import ChatGroup, ChatMessage, ChatGroupMember
