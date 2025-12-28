@@ -64,7 +64,7 @@ class ChatMessage {
       senderId: json['sender_id'],
       senderName: json['sender_name'],
       encryptedContent: json['encrypted_content'],
-      timestamp: DateTime.parse(json['timestamp']),
+      timestamp: DateTime.parse(json['timestamp']).toLocal(),
     );
   }
 

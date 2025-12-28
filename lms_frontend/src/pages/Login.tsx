@@ -8,12 +8,15 @@ const Login: React.FC = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setIsLoading(true);
+
         try {
             const response = await api.post('/auth/login', new URLSearchParams({
                 username: username,
@@ -24,12 +27,29 @@ const Login: React.FC = () => {
                 }
             });
 
-            const { access_token, role } = response.data;
-            login(access_token, { username, role });
-            navigate('/dashboard');
+            const data = response.data;
+
+            // Check if OTP is required (Dean login)
+            if (data.requires_otp) {
+                // Navigate to OTP verification page with state
+                navigate('/verify-otp', {
+                    state: {
+                        username: username,
+                        emailHint: data.email_hint || '',
+                        message: data.message || 'OTP đã được gửi đến email của bạn'
+                    }
+                });
+            } else {
+                // Normal login (non-Dean)
+                const { access_token, role } = data;
+                login(access_token, { username, role });
+                navigate('/dashboard');
+            }
         } catch (err: any) {
-            setError('Tên đăng nhập hoặc mật khẩu không đúng');
+            setError(err.response?.data?.detail || 'Tên đăng nhập hoặc mật khẩu không đúng');
             console.error(err);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -81,9 +101,10 @@ const Login: React.FC = () => {
                     </div>
                     <button
                         type="submit"
-                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 font-semibold text-sm active:scale-[0.98] mt-2"
+                        disabled={isLoading}
+                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 font-semibold text-sm active:scale-[0.98] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Đăng Nhập
+                        {isLoading ? 'Đang xử lý...' : 'Đăng Nhập'}
                     </button>
                 </form>
             </div>
