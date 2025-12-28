@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
+import '../chat/screens/chat_groups_screen.dart';
+import '../chat/chat_provider.dart';
 import 'academic_results_screen.dart';
 import 'student_classes_screen.dart';
 import 'timetable_screen.dart';
@@ -96,6 +100,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 }),
                 _buildMenuItem(context, "Học phí", Icons.monetization_on, Colors.amber, () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TuitionScreen()));
+                }),
+                _buildMenuItem(context, "Chat", Icons.chat, Colors.indigo, () {
+                  final chatProvider = context.read<ChatProvider>();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChangeNotifierProvider.value(
+                        value: chatProvider,
+                        child: const ChatGroupsScreen(),
+                      ),
+                    ),
+                  );
                 }),
               ],
             ),

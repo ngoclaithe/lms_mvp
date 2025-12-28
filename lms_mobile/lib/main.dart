@@ -12,6 +12,8 @@ import 'features/student/reports_screen.dart';
 import 'features/student/create_report_screen.dart';
 import 'features/student/report_detail_screen.dart';
 import 'features/student/notifications_screen.dart';
+import 'features/chat/chat_provider.dart';
+import 'features/chat/screens/chat_groups_screen.dart';
 import 'shared/profile_screen.dart';
 
 void main() {
@@ -21,6 +23,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LecturerProvider()),
         ChangeNotifierProvider(create: (_) => StudentProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: const MyApp(),
     ),
@@ -84,6 +87,10 @@ class MyApp extends StatelessWidget {
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),
+        ),
+        GoRoute(
+          path: '/chat-groups',
+          builder: (context, state) => const ChatGroupsScreen(),
         ),
       ],
     );

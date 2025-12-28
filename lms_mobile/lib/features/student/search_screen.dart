@@ -236,7 +236,6 @@ class _SearchScreenState extends State<SearchScreen> {
         subtitle: Text('${course['code']} • ${course['credits']} tín chỉ'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
-          // TODO: Navigate to course detail
         },
       ),
     );

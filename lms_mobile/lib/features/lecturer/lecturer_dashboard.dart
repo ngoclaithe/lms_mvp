@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
 import 'lecturer_provider.dart';
 import 'lecturer_class_detail_screen.dart';
+import '../chat/screens/chat_groups_screen.dart';
 import '../../shared/profile_screen.dart';
 
 class LecturerDashboard extends StatefulWidget {
@@ -18,7 +19,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     Future.microtask(() => context.read<LecturerProvider>().fetchClasses());
   }
 
@@ -46,6 +47,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> with SingleTicker
           controller: _tabController,
           tabs: const [
             Tab(text: 'Lớp Giảng Dạy', icon: Icon(Icons.class_)),
+            Tab(text: 'Chat', icon: Icon(Icons.chat)),
             Tab(text: 'Cá Nhân', icon: Icon(Icons.person)),
           ],
         ),
@@ -107,6 +109,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> with SingleTicker
                         );
                       },
                     ),
+          const ChatGroupsScreen(),
           const ProfileScreen(),
         ],
       ),

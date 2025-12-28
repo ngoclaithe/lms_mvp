@@ -26,9 +26,12 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
-      setState(() {
-        _isLoading = false;
-      });
+      // Kiểm tra mounted trước khi setState để tránh lỗi khi widget đã dispose
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
 
       if (success) {}
     }
